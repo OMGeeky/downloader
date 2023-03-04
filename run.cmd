@@ -1,0 +1,5 @@
+set FFMPEG_DIR=C:\OMGeeky\Programs\ffmpeg
+set USE_FILE_AUTH_RESPONSE=1
+set USE_LOCAL_AUTH_REDIRECT=1
+set YOUTUBE_VIDEO_LENGTH_MINUTES=300
+cargo run --release

@@ -2,4 +2,4 @@ target/
 .idea/
 auth/
 tests/
-!/target/release/
+#!/target/release/
