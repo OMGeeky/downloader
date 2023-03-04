@@ -1,0 +1,5 @@
+target/
+.idea/
+auth/
+tests/
+!/target/release/
