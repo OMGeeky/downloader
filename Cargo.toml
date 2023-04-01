@@ -6,17 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-google_bigquery = { path = "../../../google_bigquery" }
-google_youtube = { path = "../../../google_youtube" }
-twitch_data = { path = "../../../twitch_data" }
-downloader_config = { path = "../../../downloader_config" }
-tokio = "1.23"
-google-bigquery2 = "4.0.1"
-chrono = "0.4.23"
-nameof = "1.2.2"
-
-[[dependencies]]
 google_bigquery = { git = "https://github.com/OMGeeky/google_bigquery" }
 google_youtube = { git = "https://github.com/OMGeeky/google_youtube" }
 twitch_data = { git = "https://github.com/OMGeeky/twitch_data" }
 downloader_config = { git = "https://github.com/OMGeeky/downloader_config" }
+tokio = "1.23"
+google-bigquery2 = "4.0.1"
+chrono = "0.4.23"
+nameof = "1.2.2"
