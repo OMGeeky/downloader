@@ -27,6 +27,7 @@ jobs:
           RUSTTARGET: ${{ matrix.target }}
           ARCHIVE_TYPES: ${{ matrix.archive }}
           UPLOAD_MODE: none
+          SRC_DIR: ""
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
