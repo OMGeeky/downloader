@@ -18,7 +18,19 @@ jobs:
             archive: tar.gz tar.xz tar.zst
 #          - target: x86_64-apple-darwin
 #            archive: zip
-    steps:
+    steps:    
+      - name: Set up cargo cache
+        uses: actions/cache@v3
+        continue-on-error: false
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/            
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
       - uses: actions/checkout@master
       - name: Compile
         id: compile
@@ -27,7 +39,6 @@ jobs:
           RUSTTARGET: ${{ matrix.target }}
           ARCHIVE_TYPES: ${{ matrix.archive }}
           UPLOAD_MODE: none
-          CARGO_NET_GIT_FETCH_WITH_CLI: true
           SRC_DIR: ""
       - name: Upload artifact
         uses: actions/upload-artifact@v3
