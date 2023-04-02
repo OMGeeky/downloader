@@ -21,6 +21,7 @@ jobs:
 #          - target: x86_64-apple-darwin
 #            archive: zip
     steps:    
+      - uses: actions/checkout@master
       - name: Set up cargo cache
         uses: actions/cache@v3
         continue-on-error: false
@@ -33,7 +34,6 @@ jobs:
             target/            
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
-      - uses: actions/checkout@master
       - name: Compile
         id: compile
         uses: rust-build/rust-build.action@v1.4.3
