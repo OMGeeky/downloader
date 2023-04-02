@@ -74,6 +74,7 @@ async fn get_watched_streamers(client: &BigqueryClient) -> Result<Vec<Streamers>
 }
 
 pub async fn start_backup() -> Result<()> {
+    println!("Starting backup");
     let config = downloader_config::load_config();
     let project_id = &config.bigquery_project_id;
     let service_account_path = &config.bigquery_service_account_path;

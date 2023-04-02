@@ -27,7 +27,7 @@ const DATASET_ID: &str = "backup_data";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // println!("Hello, world!");
+    println!("Hello, world!");
     start_backup().await?;
     // sample().await?;
     Ok(())
