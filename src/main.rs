@@ -9,6 +9,7 @@ use google_bigquery::{BigDataTable, BigqueryClient};
 use google_youtube::scopes;
 use google_youtube::YoutubeClient;
 use nameof::name_of;
+use simplelog::*;
 use tokio::fs::File;
 use twitch_data::{
     convert_twitch_video_to_twitch_data_video, get_client, TwitchClient, Video, VideoQuality,
@@ -16,8 +17,6 @@ use twitch_data::{
 
 use downloader::data::{Streamers, VideoMetadata};
 use downloader::start_backup;
-
-use simplelog::*;
 
 //region constants
 
@@ -31,8 +30,7 @@ const DATASET_ID: &str = "backup_data";
 async fn main() -> Result<(), Box<dyn Error>> {
     let log_folder = "downloader/logs/";
     tokio::fs::create_dir_all(log_folder).await?;
-    tokio::fs::remove_dir_all(log_folder).await?; // delete logs
-    tokio::fs::create_dir_all(log_folder).await?;
+    let timestamp = chrono::Utc::now().format("%Y-%m-%d_%H-%M-%S").to_string();
 
     CombinedLogger::init(vec![
         // SimpleLogger::new(LevelFilter::Info, Config::default()),
@@ -45,7 +43,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         WriteLogger::new(
             LevelFilter::Info,
             Config::default(),
-            File::create(format!("{}{}", log_folder, "downloader.log"))
+            File::create(format!("{}downloader_{}.log", log_folder, timestamp))
                 .await?
                 .into_std()
                 .await,
@@ -53,7 +51,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         WriteLogger::new(
             LevelFilter::Trace,
             Config::default(),
-            File::create(format!("{}{}", log_folder, "trace.log"))
+            File::create(format!("{}trace_{}.log", log_folder, timestamp))
                 .await?
                 .into_std()
                 .await,
