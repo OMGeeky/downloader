@@ -74,16 +74,19 @@ async fn get_watched_streamers(client: &BigqueryClient) -> Result<Vec<Streamers>
 }
 
 pub async fn start_backup() -> Result<()> {
-    info!("Starting backup (info)");
+    info!("Starting backup");
     let config = downloader_config::load_config();
+    info!("loaded config");
     let project_id = &config.bigquery_project_id;
     let service_account_path = &config.bigquery_service_account_path;
     let dataset_id = &config.bigquery_dataset_id;
     let youtube_client_secret = &config.youtube_client_secret_path.as_str();
 
+    info!("creating BigqueryClient");
     let client = BigqueryClient::new(project_id, dataset_id, Some(service_account_path)).await?;
+    info!("creating twitch client");
     let twitch_client = twitch_data::get_client().await?;
-    info!("Starting main loop (info)");
+    info!("Starting main loop");
     'main_loop: loop {
         trace!("Beginning of main loop");
 

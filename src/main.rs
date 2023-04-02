@@ -32,6 +32,9 @@ const DATASET_ID: &str = "backup_data";
 async fn main() -> Result<(), Box<dyn Error>> {
     let log_folder = "downloader/logs/";
     std::fs::create_dir_all(log_folder).unwrap();
+    std::fs::remove_dir_all(log_folder).unwrap(); // delete logs
+    std::fs::create_dir_all(log_folder).unwrap();
+
     CombinedLogger::init(vec![
         // SimpleLogger::new(LevelFilter::Info, Config::default()),
         TermLogger::new(
