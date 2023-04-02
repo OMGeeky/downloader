@@ -19,7 +19,6 @@ use downloader::start_backup;
 
 use simplelog::*;
 
-use std::fs::File as StdFile;
 //region constants
 
 const SERVICE_ACCOUNT_PATH: &str = "auth/bigquery_service_account.json";
@@ -31,9 +30,9 @@ const DATASET_ID: &str = "backup_data";
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let log_folder = "downloader/logs/";
-    std::fs::create_dir_all(log_folder).unwrap();
-    std::fs::remove_dir_all(log_folder).unwrap(); // delete logs
-    std::fs::create_dir_all(log_folder).unwrap();
+    tokio::fs::create_dir_all(log_folder).await?;
+    tokio::fs::remove_dir_all(log_folder).await?; // delete logs
+    tokio::fs::create_dir_all(log_folder).await?;
 
     CombinedLogger::init(vec![
         // SimpleLogger::new(LevelFilter::Info, Config::default()),
@@ -46,12 +45,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
         WriteLogger::new(
             LevelFilter::Info,
             Config::default(),
-            StdFile::create(format!("{}{}", log_folder, "downloader.log")).unwrap(),
+            File::create(format!("{}{}", log_folder, "downloader.log"))
+                .await?
+                .into_std()
+                .await,
         ),
         WriteLogger::new(
             LevelFilter::Trace,
             Config::default(),
-            StdFile::create(format!("{}{}", log_folder, "trace.log")).unwrap(),
+            File::create(format!("{}{}", log_folder, "trace.log"))
+                .await?
+                .into_std()
+                .await,
         ),
     ])
     .unwrap();
