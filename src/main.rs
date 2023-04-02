@@ -17,6 +17,9 @@ use twitch_data::{
 use downloader::data::{Streamers, VideoMetadata};
 use downloader::start_backup;
 
+use simplelog::*;
+
+use std::fs::File as StdFile;
 //region constants
 
 const SERVICE_ACCOUNT_PATH: &str = "auth/bigquery_service_account.json";
@@ -27,6 +30,28 @@ const DATASET_ID: &str = "backup_data";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let log_folder = "downloader/logs/";
+    std::fs::create_dir_all(log_folder).unwrap();
+    CombinedLogger::init(vec![
+        // SimpleLogger::new(LevelFilter::Info, Config::default()),
+        TermLogger::new(
+            LevelFilter::Info,
+            Config::default(),
+            TerminalMode::Mixed,
+            ColorChoice::Auto,
+        ),
+        WriteLogger::new(
+            LevelFilter::Info,
+            Config::default(),
+            StdFile::create(format!("{}{}", log_folder, "downloader.log")).unwrap(),
+        ),
+        WriteLogger::new(
+            LevelFilter::Trace,
+            Config::default(),
+            StdFile::create(format!("{}{}", log_folder, "trace.log")).unwrap(),
+        ),
+    ])
+    .unwrap();
     println!("Hello, world!");
     start_backup().await?;
     // sample().await?;

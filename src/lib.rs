@@ -16,7 +16,7 @@ use tokio::process::Command;
 use twitch_data::{TwitchClient, Video};
 
 use crate::data::{Streamers, VideoData};
-
+use log::{debug, error, info, trace, warn};
 pub mod data;
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
@@ -28,17 +28,17 @@ async fn check_for_new_videos<'a>(
     //check for new videos from the channels in the database that are watched
     let watched = get_watched_streamers(db_client).await?;
 
-    println!("Got {} watched streamers", watched.len());
+    info!("Got {} watched streamers", watched.len());
     //put those videos in the database if they are not already there
     for streamer in watched {
         let videos = get_twitch_videos_from_streamer(&streamer, &twitch_client).await?;
-        println!("Got {} videos for {}", videos.len(), streamer.login);
+        info!("Got {} videos for {}", videos.len(), streamer.login);
         for video in videos {
             let video_id = video.id.parse()?;
             let loaded_video = data::Videos::load_from_pk(db_client, video_id).await?;
             if loaded_video.is_none() {
                 let video = data::VideoData::from_twitch_video(&video, &db_client)?;
-                println!(
+                info!(
                     "Video {} is not in the database, adding it: {}",
                     video_id,
                     video
@@ -74,7 +74,7 @@ async fn get_watched_streamers(client: &BigqueryClient) -> Result<Vec<Streamers>
 }
 
 pub async fn start_backup() -> Result<()> {
-    println!("Starting backup");
+    info!("Starting backup (info)");
     let config = downloader_config::load_config();
     let project_id = &config.bigquery_project_id;
     let service_account_path = &config.bigquery_service_account_path;
@@ -83,17 +83,17 @@ pub async fn start_backup() -> Result<()> {
 
     let client = BigqueryClient::new(project_id, dataset_id, Some(service_account_path)).await?;
     let twitch_client = twitch_data::get_client().await?;
-    println!("Starting main loop");
+    info!("Starting main loop (info)");
     'main_loop: loop {
-        println!("Beginning of main loop");
+        trace!("Beginning of main loop");
 
-        println!("Checking for new videos");
+        trace!("Checking for new videos");
         // check_for_new_videos(&client, &twitch_client).await?;
-        println!("backing up not downloaded videos");
+        trace!("backing up not downloaded videos");
         backup_not_downloaded_videos(&client, &twitch_client, &config).await?;
 
         //sleep for an hour
-        println!("Sleeping for an hour");
+        info!("Sleeping for an hour");
         tokio::time::sleep(std::time::Duration::from_secs(60 * 60)).await;
         //repeat
     }
@@ -102,7 +102,7 @@ pub async fn start_backup() -> Result<()> {
 async fn get_not_downloaded_videos_from_db(
     client: &BigqueryClient,
 ) -> Result<Vec<data::VideoData>> {
-    println!("getting not downloaded videos from db (metadata)");
+    info!("getting not downloaded videos from db (metadata)");
     // let mut video_metadata_list = data::VideoMetadata::load_by_field(
     //     &client,
     //     name_of!(video_id in data::VideoMetadata),
@@ -117,11 +117,11 @@ async fn get_not_downloaded_videos_from_db(
         1000,
     )
     .await?;
-    println!("getting not downloaded videos from db (videos)");
+    info!("getting not downloaded videos from db (videos)");
     let amount = video_metadata_list.len();
     let mut res = vec![];
     for (i, metadata) in video_metadata_list.into_iter().enumerate() {
-        println!(
+        info!(
             "getting not downloaded videos from db (metadata): {}/{}",
             i + 1,
             amount
@@ -130,9 +130,9 @@ async fn get_not_downloaded_videos_from_db(
 
         // let v = data::Videos::load_from_pk(client, 1744977195).await?;
         if let Some(video) = v {
-            // println!("Video: {:?}", video.title);
-            // println!("date: {:?}", video.created_at);
-            println!(
+            // info!("Video: {:?}", video.title);
+            // info!("date: {:?}", video.created_at);
+            info!(
                 "getting not downloaded videos from db (streamer): {}/{}",
                 i + 1,
                 amount
@@ -154,8 +154,8 @@ async fn get_not_downloaded_videos_from_db(
             });
         }
     }
-    println!("Got {} videos", res.len());
-    println!("Videos: {:?}", res);
+    info!("Got {} videos", res.len());
+    info!("Videos: {:?}", res);
     Ok(res)
 }
 
@@ -165,11 +165,11 @@ async fn backup_not_downloaded_videos<'a>(
     config: &Config,
 ) -> Result<()> {
     let path = Path::new(&config.download_folder_path);
-    println!("Getting not downloaded videos from db");
+    info!("Getting not downloaded videos from db");
     let videos = get_not_downloaded_videos_from_db(client).await?;
-    println!("Got {} videos", videos.len());
+    info!("Got {} videos", videos.len());
     for mut video in videos {
-        println!(
+        info!(
             "Backing up video {}: {}\nLength: {}",
             video.video.video_id,
             video.video.title.as_ref().unwrap(),
@@ -203,14 +203,14 @@ async fn backup_not_downloaded_videos<'a>(
             ),
         )
         .await?;
-        println!("Uploading video to youtube");
+        info!("Uploading video to youtube");
         let res = upload_video_to_youtube(&video_parts, &mut video, &youtube_client, config).await;
         if let Err(e) = res {
-            println!("Error uploading video: {}", e);
+            info!("Error uploading video: {}", e);
             video.metadata.error = Some(e.to_string());
             video.metadata.save_to_bigquery().await?;
         } else {
-            println!(
+            info!(
                 "Video uploaded successfully: {}: {}",
                 video.video.video_id,
                 video.video.title.as_ref().unwrap()
@@ -218,12 +218,12 @@ async fn backup_not_downloaded_videos<'a>(
             video.metadata.backed_up = Some(true);
             video.metadata.save_to_bigquery().await?;
         }
-        println!("Cleaning up video parts");
+        info!("Cleaning up video parts");
         cleanup_video_parts(video_parts).await?;
-        println!("Video backed up");
+        info!("Video backed up");
     }
 
-    println!("Backing up not downloaded videos finished");
+    info!("Backing up not downloaded videos finished");
     Ok(())
 }
 async fn cleanup_video_parts(video_parts: Vec<PathBuf>) -> Result<()> {
@@ -240,20 +240,20 @@ async fn upload_video_to_youtube<'a>(
     config: &Config,
 ) -> Result<()> {
     let part_count = video_path.len();
-    println!("Video has {} parts", part_count);
+    info!("Video has {} parts", part_count);
     for (i, path) in video_path.iter().enumerate() {
-        println!("Uploading part {} of {}", i + 1, part_count);
+        info!("Uploading part {} of {}", i + 1, part_count);
         let title = get_video_title_from_twitch_video(&video, i, part_count)?;
-        println!("youtube part Title: {}", title);
+        info!("youtube part Title: {}", title);
         let description = get_video_description_from_twitch_video(&video, i, part_count, &config)?;
 
         let privacy = match video.streamer.public_videos_default {
             Some(true) => PrivacyStatus::Public,
             _ => PrivacyStatus::Private,
         };
-        println!("Uploading video: {}", title);
-        println!("Description: {}", description);
-        println!(
+        info!("Uploading video: {}", title);
+        info!("Description: {}", description);
+        info!(
             "Privacy: {:?}",
             match privacy {
                 PrivacyStatus::Public => "Public",
@@ -287,7 +287,7 @@ async fn upload_video_to_youtube<'a>(
 
 async fn split_video_into_parts(path: PathBuf, max_duration: Duration) -> Result<Vec<PathBuf>> {
     let filepath = path.canonicalize()?;
-    println!(
+    info!(
         "Splitting video: {:?}\n\tinto parts with max duration: {} minutes",
         filepath,
         max_duration.num_minutes()
@@ -315,35 +315,35 @@ async fn split_video_into_parts(path: PathBuf, max_duration: Duration) -> Result
     let mut res = vec![];
     let parent_dir = path.parent().unwrap();
     let read = std::fs::read_dir(parent_dir)?;
-    println!("Reading dir: {:?}", parent_dir);
+    info!("Reading dir: {:?}", parent_dir);
     for x in read {
-        // println!("Checking file: {:?}", x);
+        // info!("Checking file: {:?}", x);
         let path = x?.path();
         if path.is_file() {
             let file_name = path.canonicalize()?;
             // let file_name = path.to_str().unwrap();
-            println!("Checking file: {:?}", file_name);
+            info!("Checking file: {:?}", file_name);
             let filename_beginning_pattern = format!("{}_", &filepath.to_str().unwrap());
             let filename_str = file_name.to_str().unwrap();
             if filename_str.starts_with(&filename_beginning_pattern)
                 && filename_str.ends_with(".mp4")
             {
-                println!("Found file: {:?}", file_name);
+                info!("Found file: {:?}", file_name);
                 res.push(path);
             } else {
-                println!("Skipping file:       {:?}", file_name);
-                println!("Filepath to compare: {:?}", filename_beginning_pattern);
-                println!(
+                info!("Skipping file:       {:?}", file_name);
+                info!("Filepath to compare: {:?}", filename_beginning_pattern);
+                info!(
                     "Starts with: {}",
                     filename_str.starts_with(&filename_beginning_pattern)
                 );
-                println!("Ends with: {}", filename_str.ends_with(".mp4"));
+                info!("Ends with: {}", filename_str.ends_with(".mp4"));
             }
         }
     }
     tokio::fs::remove_file(&path).await?;
-    println!("Split video into {} parts", res.len());
-    // println!("Video parts: {:?}", res);
+    info!("Split video into {} parts", res.len());
+    // info!("Video parts: {:?}", res);
     // stdin().read_line(&mut String::new()).unwrap();
     Ok(res)
 }
@@ -442,9 +442,9 @@ pub fn get_video_prefix_from_twitch_video(
     part: usize,
     total_parts: usize,
 ) -> Result<String> {
-    println!("video: {:?}", video);
-    println!("video.video: {:?}", video.video);
-    println!("video.video.created_at: {:?}", video.video.created_at);
+    info!("video: {:?}", video);
+    info!("video.video: {:?}", video.video);
+    info!("video.video.created_at: {:?}", video.video.created_at);
     let created_at = video
         .video
         .created_at
