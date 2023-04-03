@@ -38,6 +38,8 @@ jobs:
       - name: Compile
         id: compile
         uses: rust-build/rust-build.action@v1.4.3
+        env:
+          RUSTFLAGS: "-C target-feature=-crt-static"
         with:
           RUSTTARGET: ${{ matrix.target }}
           ARCHIVE_TYPES: ${{ matrix.archive }}
