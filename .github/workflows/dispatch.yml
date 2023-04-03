@@ -2,12 +2,11 @@
 name: Build
 
 on:
-
-  push:
-    branches: [ main ]
-    
   workflow_dispatch:
-
+  push:
+    branches: 
+      - master
+      
 jobs:
   build:
     name: Build
@@ -30,8 +29,7 @@ jobs:
         with:
           path: |
             ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
+            ~/.cargo/registry/
             ~/.cargo/git/db/
             target/            
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
@@ -39,6 +37,10 @@ jobs:
       - name: Compile
         id: compile
         uses: rust-build/rust-build.action@v1.4.3
+        env:
+#         "-C target-feature=-crt-static" is required to be able
+#         to run in an alpine docker container
+          RUSTFLAGS: "-C target-feature=-crt-static"
         with:
           RUSTTARGET: ${{ matrix.target }}
           ARCHIVE_TYPES: ${{ matrix.archive }}
