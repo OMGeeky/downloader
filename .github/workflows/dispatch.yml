@@ -38,6 +38,8 @@ jobs:
         id: compile
         uses: rust-build/rust-build.action@v1.4.3
         env:
+#         "-C target-feature=-crt-static" is required to be able
+#         to run in an alpine docker container
           RUSTFLAGS: "-C target-feature=-crt-static"
         with:
           RUSTTARGET: ${{ matrix.target }}
