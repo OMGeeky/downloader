@@ -25,6 +25,7 @@ async fn check_for_new_videos<'a>(
     db_client: &BigqueryClient,
     twitch_client: &TwitchClient<'a>,
 ) -> Result<()> {
+    trace!("Checking for new videos");
     //check for new videos from the channels in the database that are watched
     let watched = get_watched_streamers(db_client).await?;
 
@@ -59,15 +60,16 @@ async fn get_twitch_videos_from_streamer<'a>(
     streamer: &'a Streamers<'a>,
     twitch_client: &TwitchClient<'a>,
 ) -> Result<Vec<Video>> {
+    trace!("Getting videos from streamer {}", streamer.login);
     let videos = twitch_client
         .get_videos_from_login(&streamer.login, None)
         .await?;
 
-    // todo!()
     Ok(videos)
 }
 
 async fn get_watched_streamers(client: &BigqueryClient) -> Result<Vec<Streamers>> {
+    trace!("Getting watched streamers");
     let watched =
         Streamers::load_by_field(client, name_of!(watched in Streamers), Some(true), 1000).await?;
     Ok(watched)
@@ -91,7 +93,7 @@ pub async fn start_backup() -> Result<()> {
         trace!("Beginning of main loop");
 
         trace!("Checking for new videos");
-        // check_for_new_videos(&client, &twitch_client).await?;
+        check_for_new_videos(&client, &twitch_client).await?;
         trace!("backing up not downloaded videos");
         backup_not_downloaded_videos(&client, &twitch_client, &config).await?;
 
@@ -167,6 +169,7 @@ async fn backup_not_downloaded_videos<'a>(
     twitch_client: &TwitchClient<'a>,
     config: &Config,
 ) -> Result<()> {
+    trace!("backup not downloaded videos");
     let path = Path::new(&config.download_folder_path);
     info!("Getting not downloaded videos from db");
     let videos = get_not_downloaded_videos_from_db(client).await?;
@@ -184,7 +187,8 @@ async fn backup_not_downloaded_videos<'a>(
 
         let mut video_parts = split_video_into_parts(
             video_file_path.to_path_buf(),
-            Duration::minutes(config.youtube_video_length_minutes),
+            Duration::minutes(config.youtube_video_length_minutes_soft_cap),
+            Duration::minutes(config.youtube_video_length_minutes_hard_cap),
         )
         .await?;
         video_parts.sort();
@@ -230,7 +234,9 @@ async fn backup_not_downloaded_videos<'a>(
     Ok(())
 }
 async fn cleanup_video_parts(video_parts: Vec<PathBuf>) -> Result<()> {
+    trace!("cleanup video parts");
     for part in video_parts {
+        trace!("Removing part: {}", part.display());
         std::fs::remove_file(part)?;
     }
     Ok(())
@@ -242,6 +248,7 @@ async fn upload_video_to_youtube<'a>(
     youtube_client: &YoutubeClient,
     config: &Config,
 ) -> Result<()> {
+    trace!("upload video to youtube");
     let part_count = video_path.len();
     info!("Video has {} parts", part_count);
     for (i, path) in video_path.iter().enumerate() {
@@ -288,15 +295,23 @@ async fn upload_video_to_youtube<'a>(
     Ok(())
 }
 
-async fn split_video_into_parts(path: PathBuf, max_duration: Duration) -> Result<Vec<PathBuf>> {
+async fn split_video_into_parts(
+    path: PathBuf,
+    duration_soft_cap: Duration,
+    duration_hard_cap: Duration,
+) -> Result<Vec<PathBuf>> {
+    trace!("split video into parts");
     let filepath = path.canonicalize()?;
     info!(
-        "Splitting video: {:?}\n\tinto parts with max duration: {} minutes",
+        "Splitting video: {:?}\n\tinto parts with soft cap duration: {} minutes and hard cap duration: {} minutes",
         filepath,
-        max_duration.num_minutes()
+        duration_soft_cap.num_minutes(),
+        duration_hard_cap.num_minutes()
     );
     let output_path_pattern = format!("{}_%03d.mp4", filepath.to_str().unwrap()); //TODO: maybe make the number of digits dynamic
-    let duration_str = duration_to_string(&max_duration);
+    warn!("The soft and hard cap duration are not implemented yet");
+    // todo!(implement the soft and hard cap duration);
+    let duration_str = duration_to_string(&duration_soft_cap);
     //example: ffmpeg -i input.mp4 -c copy -map 0 -segment_time 00:20:00 -f segment output%03d.mp4
     Command::new("ffmpeg")
         .args([
@@ -369,6 +384,7 @@ pub fn get_video_description_from_twitch_video(
     total_parts: usize,
     config: &Config,
 ) -> Result<String> {
+    trace!("get video description from twitch video");
     let description_template = &config.youtube_description_template;
     let description = description_template.clone();
 
@@ -411,6 +427,7 @@ pub fn get_video_title_from_twitch_video(
     part: usize,
     total_parts: usize,
 ) -> Result<String> {
+    trace!("get video title from twitch video");
     let prefix = match total_parts {
         1 => "".to_string(),
         _ => format!(
@@ -428,6 +445,7 @@ const MAX_VIDEO_TITLE_LENGTH: usize = 100;
 const PREFIX_LENGTH: usize = 24;
 
 pub fn get_playlist_title_from_twitch_video(video: &data::VideoData) -> Result<String> {
+    trace!("get playlist title from twitch video");
     let title = video.video.title.as_ref().ok_or("Video has no title")?;
     const SEPARATOR_LEN: usize = 1;
     if title.len() > MAX_VIDEO_TITLE_LENGTH - PREFIX_LENGTH - SEPARATOR_LEN {
@@ -445,6 +463,7 @@ pub fn get_video_prefix_from_twitch_video(
     part: usize,
     total_parts: usize,
 ) -> Result<String> {
+    trace!("get video prefix from twitch video");
     info!("video: {:?}", video);
     info!("video.video: {:?}", video.video);
     info!("video.video.created_at: {:?}", video.video.created_at);
@@ -467,6 +486,7 @@ pub fn get_video_prefix_from_twitch_video(
 //endregion
 
 fn duration_to_string(duration: &Duration) -> String {
+    trace!("duration to string for duration: {:?}", duration);
     let seconds = duration.num_seconds();
     let hours = seconds / 3600;
     let minutes = (seconds % 3600) / 60;

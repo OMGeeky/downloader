@@ -2,3 +2,5 @@
 /auth/
 /temp/
 /Cargo.lock
+/downloader/logs/
+/build
