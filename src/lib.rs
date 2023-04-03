@@ -10,13 +10,15 @@ use downloader_config;
 use downloader_config::Config;
 use google_bigquery::{BigDataTable, BigqueryClient};
 use google_youtube::{scopes, PrivacyStatus, YoutubeClient};
+use log::{debug, error, info, trace, warn};
 use nameof::name_of;
+use path_clean::clean;
 use tokio::io::BufReader;
 use tokio::process::Command;
 use twitch_data::{TwitchClient, Video};
 
 use crate::data::{Streamers, VideoData};
-use log::{debug, error, info, trace, warn};
+
 pub mod data;
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
@@ -295,24 +297,42 @@ async fn upload_video_to_youtube<'a>(
     Ok(())
 }
 
-async fn split_video_into_parts(
+pub async fn split_video_into_parts(
     path: PathBuf,
     duration_soft_cap: Duration,
     duration_hard_cap: Duration,
 ) -> Result<Vec<PathBuf>> {
     trace!("split video into parts");
+    //region prepare paths
     let filepath = path.canonicalize()?;
+    let parent_dir = path
+        .parent()
+        .unwrap()
+        .canonicalize()
+        .expect("Could not canonicalize parent dir");
+
+    let file_playlist = clean(Path::join(&parent_dir, "output.m3u8"));
+    //endregion
     info!(
         "Splitting video: {:?}\n\tinto parts with soft cap duration: {} minutes and hard cap duration: {} minutes",
         filepath,
         duration_soft_cap.num_minutes(),
         duration_hard_cap.num_minutes()
     );
+
     let output_path_pattern = format!("{}_%03d.mp4", filepath.to_str().unwrap()); //TODO: maybe make the number of digits dynamic
-    warn!("The soft and hard cap duration are not implemented yet");
-    // todo!(implement the soft and hard cap duration);
     let duration_str = duration_to_string(&duration_soft_cap);
+
+    //region run ffmpeg split command
     //example: ffmpeg -i input.mp4 -c copy -map 0 -segment_time 00:20:00 -f segment output%03d.mp4
+    trace!(
+        "Running ffmpeg command: ffmpeg -i {:?} -c copy -map 0 -segment_time {} -reset_timestamps 1\
+         -segment_list {} -segment_list_type m3u8 -avoid_negative_ts 1 -f segment {}",
+        filepath,
+        duration_str,
+        file_playlist.display(),
+        output_path_pattern
+    );
     Command::new("ffmpeg")
         .args([
             "-i",
@@ -323,46 +343,132 @@ async fn split_video_into_parts(
             "0",
             "-segment_time",
             &duration_str,
+            "-reset_timestamps",
+            "1",
+            "-segment_list",
+            file_playlist.to_str().unwrap(),
+            "-segment_list_type",
+            "m3u8",
+            "-avoid_negative_ts",
+            "1",
             "-f",
             "segment",
             &output_path_pattern,
         ])
         .output()
         .await?;
+    trace!("Finished running ffmpeg command");
+    //endregion
 
+    //region extract parts from playlist file (create by ffmpeg 'output.m3u8')
     let mut res = vec![];
-    let parent_dir = path.parent().unwrap();
-    let read = std::fs::read_dir(parent_dir)?;
-    info!("Reading dir: {:?}", parent_dir);
-    for x in read {
-        // info!("Checking file: {:?}", x);
-        let path = x?.path();
-        if path.is_file() {
-            let file_name = path.canonicalize()?;
-            // let file_name = path.to_str().unwrap();
-            info!("Checking file: {:?}", file_name);
-            let filename_beginning_pattern = format!("{}_", &filepath.to_str().unwrap());
-            let filename_str = file_name.to_str().unwrap();
-            if filename_str.starts_with(&filename_beginning_pattern)
-                && filename_str.ends_with(".mp4")
-            {
-                info!("Found file: {:?}", file_name);
-                res.push(path);
-            } else {
-                info!("Skipping file:       {:?}", file_name);
-                info!("Filepath to compare: {:?}", filename_beginning_pattern);
-                info!(
-                    "Starts with: {}",
-                    filename_str.starts_with(&filename_beginning_pattern)
+    info!("Reading playlist file: {}", file_playlist.display());
+    let playlist = tokio::fs::read_to_string(&file_playlist)
+        .await
+        .expect(format!("Failed to read playlist {}", file_playlist.display()).as_str());
+    let mut last_time = 0.0;
+    let mut time = 0.0;
+    let mut last_path: Option<PathBuf> = None;
+    let mut current_path: Option<PathBuf> = None;
+    for line in playlist.lines() {
+        if line.starts_with("#") {
+            if line.starts_with("#EXTINF:") {
+                last_time = time;
+                time = line["#EXTINF:".len()..].parse::<f64>().unwrap_or(0.0);
+            }
+            continue;
+        }
+        last_path = current_path;
+        current_path = Some(Path::join(&parent_dir, line));
+        res.push(current_path.clone().unwrap());
+    }
+    //endregion
+
+    //region maybe join last two parts
+    trace!("Deciding if last two parts should be joined");
+    if let Some(last_path) = last_path {
+        if let Some(current_path) = current_path {
+            let joined_time = last_time + time;
+            if joined_time < duration_soft_cap.num_seconds() as f64 {
+                //region join last two parts
+                info!("Joining last two parts");
+
+                //remove the part from the result that is going to be joined
+                res.pop();
+
+                let join_txt_path = Path::join(&parent_dir, "join.txt");
+                let join_mp4_path = Path::join(&parent_dir, "join.mp4");
+                tokio::fs::write(
+                    join_txt_path.clone(),
+                    format!(
+                        "file '{}'\nfile '{}'",
+                        clean(&last_path)
+                            .to_str()
+                            .expect("to_str on path did not work!"),
+                        clean(&current_path)
+                            .to_str()
+                            .expect("to_str on path did not work!")
+                    ),
+                )
+                .await?;
+
+                // example: ffmpeg -f concat -safe 0 -i join.txt -c copy joined.mp4
+                // content of join.txt:
+                // file 'output_002.mp4'
+                // file 'output_003.mp4'
+                let join_txt_path = clean(join_txt_path);
+                let join_mp4_path = clean(join_mp4_path);
+
+                trace!(
+                    "Running ffmpeg command: ffmpeg -f concat -safe 0 -i {:?} -c copy {:?}",
+                    join_txt_path,
+                    join_mp4_path
                 );
-                info!("Ends with: {}", filename_str.ends_with(".mp4"));
+                Command::new("ffmpeg")
+                    .args([
+                        "-f",
+                        "concat",
+                        "-safe",
+                        "0",
+                        "-i",
+                        join_txt_path
+                            .to_str()
+                            .expect("to_str on join_txt_path did not work!"),
+                        "-c",
+                        "copy",
+                        join_mp4_path
+                            .to_str()
+                            .expect("to_str on join_mp4_path did not work!"),
+                    ])
+                    .output()
+                    .await?;
+                trace!("Finished running ffmpeg command");
+                //region remove files
+                trace!(
+                    "Removing files: {:?}, {:?}, {:?} {:?}",
+                    current_path,
+                    last_path,
+                    join_txt_path,
+                    file_playlist,
+                );
+                tokio::fs::remove_file(current_path).await?;
+                tokio::fs::remove_file(&last_path).await?;
+                tokio::fs::remove_file(join_txt_path).await?;
+                tokio::fs::remove_file(file_playlist).await?;
+                //endregion
+                trace!("Renaming file: {:?} to {:?}", join_mp4_path, last_path);
+                tokio::fs::rename(join_mp4_path, last_path).await?;
+                info!("Joined last two parts");
+                //endregion
             }
         }
     }
+    //endregion
+
+    info!("removing the original file");
     tokio::fs::remove_file(&path).await?;
+
     info!("Split video into {} parts", res.len());
-    // info!("Video parts: {:?}", res);
-    // stdin().read_line(&mut String::new()).unwrap();
     Ok(res)
 }
 
