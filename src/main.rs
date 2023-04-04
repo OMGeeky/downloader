@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     CombinedLogger::init(vec![
         // SimpleLogger::new(LevelFilter::Info, Config::default()),
         TermLogger::new(
-            LevelFilter::Trace,
+            LevelFilter::Info,
             Config::default(),
             TerminalMode::Mixed,
             ColorChoice::Auto,
