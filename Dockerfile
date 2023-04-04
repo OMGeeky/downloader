@@ -13,6 +13,8 @@ COPY ./build/ /bin/
 RUN chmod +x /bin/downloader
 # add libgcc to the container (it needs it for some reason)
 RUN apk add libgcc
+# add ffmpeg to the container (needed for video splitting)
+RUN apk add ffmpeg
 
 # set the start cmd
 CMD ["/bin/downloader"]

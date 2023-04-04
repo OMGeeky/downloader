@@ -189,7 +189,7 @@ impl<'a> VideoData<'a> {
                 title: Some(video.title.clone()),
                 description: Some(video.description.clone()),
                 bool_test: Some(true),
-                user_login: Some(video.user_login.to_string()),
+                user_login: Some(video.user_login.to_lowercase()),
                 created_at: Some(video.created_at.clone()),
                 url: Some(video.url.clone()),
                 viewable: Some(video.viewable.clone()),

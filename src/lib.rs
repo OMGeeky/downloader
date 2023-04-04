@@ -144,15 +144,14 @@ async fn get_not_downloaded_videos_from_db(
                 i + 1,
                 amount
             );
-            let streamer = data::Streamers::load_from_pk(client, video.user_login.clone().unwrap())
-                .await?
-                .expect(
-                    format!(
-                        "Streamer with login not found: {}",
-                        video.user_login.clone().unwrap()
-                    )
-                    .as_str(),
-                );
+            let user_login = video.user_login.clone().unwrap().to_lowercase();
+            let streamer = data::Streamers::load_from_pk(client, user_login.clone()).await?;
+            if streamer.is_none() {
+                // .expect(format!("Streamer with login not found: {}", user_login).as_str());
+                warn!("Streamer with login not found: {}", user_login);
+                continue;
+            }
+            let streamer = streamer.unwrap();
 
             res.push(VideoData {
                 video,
