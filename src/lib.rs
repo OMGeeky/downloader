@@ -304,11 +304,11 @@ pub async fn split_video_into_parts(
     trace!("split video into parts");
     //region prepare paths
     let filepath = path.canonicalize()?;
-    let parent_dir = path
-        .parent()
-        .unwrap()
-        .canonicalize()
-        .expect("Could not canonicalize parent dir");
+    let parent_dir = path.parent().unwrap().canonicalize();
+    if parent_dir.is_err() {
+        warn!("Could not canonicalize parent dir");
+    }
+    let parent_dir = parent_dir.expect("Could not canonicalize parent dir");
 
     let file_playlist = clean(Path::join(&parent_dir, "output.m3u8"));
     //endregion
@@ -362,9 +362,12 @@ pub async fn split_video_into_parts(
     //region extract parts from playlist file (create by ffmpeg 'output.m3u8')
     let mut res = vec![];
     info!("Reading playlist file: {}", file_playlist.display());
-    let playlist = tokio::fs::read_to_string(&file_playlist)
-        .await
-        .expect(format!("Failed to read playlist {}", file_playlist.display()).as_str());
+    let playlist = tokio::fs::read_to_string(&file_playlist).await;
+    if playlist.is_err() {
+        warn!("Failed to read playlist file: {}", file_playlist.display());
+    }
+    let playlist =
+        playlist.expect(format!("Failed to read playlist {}", file_playlist.display()).as_str());
     let mut last_time = 0.0;
     let mut time = 0.0;
     let mut last_path: Option<PathBuf> = None;
