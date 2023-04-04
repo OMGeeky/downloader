@@ -1,6 +1,7 @@
 #![allow(unused, incomplete_features)]
 
 use std::error::Error;
+use std::future::Future;
 use std::io::stdin;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -108,15 +109,9 @@ pub async fn start_backup() -> Result<()> {
 
 async fn get_not_downloaded_videos_from_db(
     client: &BigqueryClient,
-) -> Result<Vec<data::VideoData>> {
+) -> Result<impl Iterator<Item = impl Future<Output = Result<Option<data::VideoData>>>>> {
+    //TODO: make sure that this is sorted by date (oldest first)
     info!("getting not downloaded videos from db (metadata)");
-    // let mut video_metadata_list = data::VideoMetadata::load_by_field(
-    //     &client,
-    //     name_of!(video_id in data::VideoMetadata),
-    //     Some(1736394548),
-    //     1000,
-    // )
-    // .await?;
     let mut video_metadata_list = data::VideoMetadata::load_by_field(
         &client,
         name_of!(backed_up in data::VideoMetadata),
@@ -126,43 +121,42 @@ async fn get_not_downloaded_videos_from_db(
     .await?;
     info!("getting not downloaded videos from db (videos)");
     let amount = video_metadata_list.len();
-    let mut res = vec![];
-    for (i, metadata) in video_metadata_list.into_iter().enumerate() {
-        info!(
-            "getting not downloaded videos from db (metadata): {}/{}",
-            i + 1,
-            amount
-        );
-        let v = data::Videos::load_from_pk(client, metadata.video_id).await?;
-
-        // let v = data::Videos::load_from_pk(client, 1744977195).await?;
-        if let Some(video) = v {
-            // info!("Video: {:?}", video.title);
-            // info!("date: {:?}", video.created_at);
+    info!("got about {} videos", amount);
+    let res = video_metadata_list
+        .into_iter()
+        .enumerate()
+        .map(move |(i, metadata)| async move {
             info!(
-                "getting not downloaded videos from db (streamer): {}/{}",
+                "getting not downloaded videos from db (metadata): {}/{}",
                 i + 1,
                 amount
             );
-            let user_login = video.user_login.clone().unwrap().to_lowercase();
-            let streamer = data::Streamers::load_from_pk(client, user_login.clone()).await?;
-            if streamer.is_none() {
-                // .expect(format!("Streamer with login not found: {}", user_login).as_str());
-                warn!("Streamer with login not found: {}", user_login);
-                continue;
-            }
-            let streamer = streamer.unwrap();
+            let v = data::Videos::load_from_pk(client, metadata.video_id).await?;
 
-            res.push(VideoData {
-                video,
-                metadata,
-                streamer,
-            });
-        }
-    }
-    info!("Got {} videos", res.len());
-    info!("Videos: {:?}", res);
-    Ok(res)
+            if let Some(video) = v {
+                info!(
+                    "getting not downloaded videos from db (streamer): {}/{}",
+                    i + 1,
+                    amount
+                );
+                let user_login = video.user_login.clone().unwrap().to_lowercase();
+                let streamer = data::Streamers::load_from_pk(client, user_login.clone()).await?;
+                if streamer.is_none() {
+                    // .expect(format!("Streamer with login not found: {}", user_login).as_str());
+                    warn!("Streamer with login not found: {}", user_login);
+                    return Ok(None);
+                }
+                let streamer = streamer.unwrap();
+
+                return Ok(Some(VideoData {
+                    video,
+                    metadata,
+                    streamer,
+                }));
+            }
+            Ok(None)
+        }); //TODO: maybe figure out how to use the filter method on this async iterator (filter out None values)
+    return Ok(res);
 }
 
 async fn backup_not_downloaded_videos<'a>(
@@ -174,8 +168,12 @@ async fn backup_not_downloaded_videos<'a>(
     let path = Path::new(&config.download_folder_path);
     info!("Getting not downloaded videos from db");
     let videos = get_not_downloaded_videos_from_db(client).await?;
-    info!("Got {} videos", videos.len());
     for mut video in videos {
+        let video = video.await?;
+        if video.is_none() {
+            continue;
+        }
+        let mut video = video.unwrap();
         info!(
             "Backing up video {}: {}\nLength: {}",
             video.video.video_id,
@@ -184,7 +182,15 @@ async fn backup_not_downloaded_videos<'a>(
         );
         let video_file_path = twitch_client
             .download_video(video.video.video_id.to_string(), "", path)
-            .await?;
+            .await;
+        if video_file_path.is_err() {
+            warn!(
+                "Failed to download video: {}: {:?}",
+                video.video.video_id, video.video.title
+            );
+            continue;
+        }
+        let video_file_path = video_file_path.unwrap();
 
         let mut video_parts = split_video_into_parts(
             video_file_path.to_path_buf(),

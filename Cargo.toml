@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 google_bigquery = { git = "https://github.com/OMGeeky/google_bigquery" }
 google_youtube = { git = "https://github.com/OMGeeky/google_youtube" }
-twitch_data = { git = "https://github.com/OMGeeky/twitch_data" }
+twitch_data = { version="0.1.2", git = "https://github.com/OMGeeky/twitch_data" }
 downloader_config = { version="0.2.0", git = "https://github.com/OMGeeky/downloader_config" }
 tokio = "1.23"
 google-bigquery2 = "4.0.1"
