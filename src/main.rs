@@ -58,6 +58,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ),
     ])
     .unwrap();
+    log_panics::init();
     println!("Hello, world!");
     start_backup().await?;
     // sample().await?;
