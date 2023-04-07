@@ -355,7 +355,7 @@ dependencies = [
 
 [[package]]
 name = "downloader"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "chrono",
  "downloader_config",
@@ -374,8 +374,8 @@ dependencies = [
 
 [[package]]
 name = "downloader_config"
-version = "0.2.0"
-source = "git+https://github.com/OMGeeky/downloader_config#303380be04fd25835ae81ec42fcd097372a04219"
+version = "0.3.0"
+source = "git+https://github.com/OMGeeky/downloader_config#a484c2ece44554f47d72a3e8541abc0dda9c78bb"
 dependencies = [
  "log 0.4.17",
 ]
@@ -2045,8 +2045,8 @@ dependencies = [
 
 [[package]]
 name = "twitch_data"
-version = "0.1.4"
-source = "git+https://github.com/OMGeeky/twitch_data#1e0e6f48aca624832018714a1cc4f3997abdf69e"
+version = "0.1.7"
+source = "git+https://github.com/OMGeeky/twitch_data#b28cb4670ebf08fc2952682da2b1807efa4e939c"
 dependencies = [
  "async-recursion",
  "chrono",
@@ -2058,6 +2058,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "simplelog",
  "tokio",
  "twitch_api",
  "twitch_oauth2",
