@@ -8,6 +8,7 @@ use google_bigquery;
 use google_bigquery::{BigDataTable, BigqueryClient};
 use google_youtube::scopes;
 use google_youtube::YoutubeClient;
+use log::{debug, error, info, trace, warn};
 use nameof::name_of;
 use simplelog::*;
 use tokio::fs::File;
