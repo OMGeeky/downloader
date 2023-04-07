@@ -1,7 +1,6 @@
 /target
 /auth/
 /temp/
-/Cargo.lock
 /downloader/logs/
 /build
 /tests/test_data/tmp/

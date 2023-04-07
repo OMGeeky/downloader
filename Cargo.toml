@@ -16,6 +16,7 @@ chrono = "0.4.23"
 nameof = "1.2.2"
 log = "0.4.17"
 simplelog = "0.12.1"
+log4rs = { version = "1.2.0" , features = ["compound_policy", "default", "size_trigger", "all_components", "gzip"] }
 path-clean = "1.0.1"
 
 log-panics = { version = "2", features = ["with-backtrace"]}
