@@ -191,7 +191,7 @@ async fn backup_not_downloaded_videos<'a>(
             continue;
         }
         let video_file_path = video_file_path.unwrap();
-
+        info!("Splitting video into parts");
         let mut video_parts = split_video_into_parts(
             video_file_path.to_path_buf(),
             Duration::minutes(config.youtube_video_length_minutes_soft_cap),
@@ -393,13 +393,17 @@ pub async fn split_video_into_parts(
     //endregion
 
     //region maybe join last two parts
-    trace!("Deciding if last two parts should be joined");
+    debug!("Deciding if last two parts should be joined");
     if let Some(last_path) = last_path {
         if let Some(current_path) = current_path {
             let joined_time = last_time + time;
             if joined_time < duration_soft_cap.num_seconds() as f64 {
                 //region join last two parts
-                info!("Joining last two parts");
+                info!(
+                    "Joining last two parts. second last part duration: {} seconds, \
+                    last part duration: {} seconds, joined duration: {} seconds",
+                    last_time, time, joined_time
+                );
 
                 //remove the part from the result that is going to be joined
                 res.pop();

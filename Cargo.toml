@@ -1,14 +1,14 @@
 [package]
 name = "downloader"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 google_bigquery = { git = "https://github.com/OMGeeky/google_bigquery" }
-google_youtube = { git = "https://github.com/OMGeeky/google_youtube" }
-twitch_data = { version="0.1.3", git = "https://github.com/OMGeeky/twitch_data" }
+google_youtube = { version="0.1.1",git = "https://github.com/OMGeeky/google_youtube" }
+twitch_data = { version="0.1.4", git = "https://github.com/OMGeeky/twitch_data" }
 downloader_config = { version="0.2.0", git = "https://github.com/OMGeeky/downloader_config" }
 tokio = "1.23"
 google-bigquery2 = "4.0.1"

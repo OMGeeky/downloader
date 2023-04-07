@@ -66,7 +66,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 pub async fn sample() -> Result<(), Box<dyn Error>> {
-    println!("Hello from the downloader lib!");
+    info!("Hello from the downloader lib!");
 
     let client = BigqueryClient::new(PROJECT_ID, DATASET_ID, Some(SERVICE_ACCOUNT_PATH)).await?;
     sample_bigquery(&client).await?;
@@ -86,10 +86,10 @@ pub async fn sample() -> Result<(), Box<dyn Error>> {
 }
 
 async fn sample_twitch<'a>(client: &TwitchClient<'a>) -> Result<(), Box<dyn Error>> {
-    println!("\n\nGetting videos...");
+    info!("\n\nGetting videos...");
 
     let res = client.get_channel_info_from_login("burn").await?;
-    println!("got channel info: {:?}", res);
+    info!("got channel info: {:?}", res);
     let channel_id = res.unwrap().broadcaster_id;
 
     let videos: Vec<Video> = client
@@ -99,30 +99,30 @@ async fn sample_twitch<'a>(client: &TwitchClient<'a>) -> Result<(), Box<dyn Erro
         .map(convert_twitch_video_to_twitch_data_video)
         .collect();
 
-    println!("got video ids: {:?}", videos.len());
+    info!("got video ids: {:?}", videos.len());
     for (i, video) in videos.iter().enumerate() {
-        println!("+======={:2}: {:?}", i, video);
+        info!("+======={:2}: {:?}", i, video);
     }
 
-    println!("\n\nGetting video for short download...");
+    info!("\n\nGetting video for short download...");
     let short_video_id = twitch_data::VideoId::new("1710229470".to_string());
     let video_info = client.get_video_info(&short_video_id).await?;
-    println!("got video info: {:?}", video_info);
+    info!("got video info: {:?}", video_info);
 
     let output_folder = Path::new("C:\\tmp\\videos\\");
     let res = client
         .download_video_by_id(&video_info.id, &VideoQuality::Source, output_folder)
         .await?;
-    println!("downloaded video: {:?}", res);
+    info!("downloaded video: {:?}", res);
 
-    println!("\n\nDone!");
+    info!("\n\nDone!");
     Ok(())
 }
 
 async fn sample_bigquery<'a>(client: &'a BigqueryClient) -> Result<(), Box<dyn Error>> {
     // let x = VideoMetadata::from_pk(&client, 1638184921).await?;
     let video_metadata = VideoMetadata::create_and_load_from_pk(&client, 1638184921).await?;
-    println!("got video_metadata by id: {:?}", video_metadata);
+    info!("got video_metadata by id: {:?}", video_metadata);
 
     let video_metadata = VideoMetadata::load_by_field(
         &client,
@@ -138,16 +138,16 @@ async fn sample_bigquery<'a>(client: &'a BigqueryClient) -> Result<(), Box<dyn E
     print_vec_sample("got watched_streamers:", watched_streamers);
 
     fn print_vec_sample<T: Debug>(message: &str, watched_streamers: Vec<T>) {
-        println!("{} {:?}", message, watched_streamers.len());
+        info!("{} {:?}", message, watched_streamers.len());
         for (i, streamer) in watched_streamers.iter().enumerate() {
-            println!("+======={}: {:?}", i, streamer);
+            info!("+======={}: {:?}", i, streamer);
         }
     }
     Ok(())
 }
 
 async fn sample_youtube(client: &YoutubeClient) -> Result<(), Box<dyn Error>> {
-    println!("Opening video file...");
+    info!("Opening video file...");
     let file = Path::new("C:\\Users\\frede\\Videos\\test.mp4");
     // let file = File::open(file).await?;
 
@@ -156,12 +156,12 @@ async fn sample_youtube(client: &YoutubeClient) -> Result<(), Box<dyn Error>> {
     let tags = vec!["test".to_string(), "test2".to_string()];
     let privacy_status = google_youtube::PrivacyStatus::Private;
 
-    println!("Uploading video...");
+    info!("Uploading video...");
     let video = &client
         .upload_video(file, title, description, tags, privacy_status)
         .await?;
 
-    println!("video: \n\n{:?}\n\n", video);
+    info!("video: \n\n{:?}\n\n", video);
 
     Ok(())
 }
