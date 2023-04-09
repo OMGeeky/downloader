@@ -1,0 +1,27 @@
+refresh_rate: 30 seconds
+
+appenders:
+  stdout:
+    kind: console
+
+  requests:
+    kind: file
+    path: "/tmp/twba/logs/downloader.log"
+    encoder:
+      pattern: "[{d:35}] [{h({l:5})}] {M}::{file}:{L} - {m}{n}"
+    rolling:
+      kind: size
+      trigger:
+        max_size: 100mb
+      policy:
+        kind: compound
+        trigger:
+          kind: fixed_window
+          pattern: "/tmp/twba/logs/archive/downloader.{}.log"
+          count: 5
+
+root:
+  level: debug
+  appenders:
+    - stdout
+    - file

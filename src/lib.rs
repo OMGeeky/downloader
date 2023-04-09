@@ -330,8 +330,8 @@ pub async fn split_video_into_parts(
 
     //region run ffmpeg split command
     //example: ffmpeg -i input.mp4 -c copy -map 0 -segment_time 00:20:00 -f segment output%03d.mp4
-    trace!(
-        "Running ffmpeg command: ffmpeg -i {:?} -c copy -map 0 -segment_time {} -reset_timestamps 1\
+    debug!(
+        "Running ffmpeg command: ffmpeg -i {:?} -c copy -map 0 -segment_time {} -reset_timestamps 1 \
          -segment_list {} -segment_list_type m3u8 -avoid_negative_ts 1 -f segment {}",
         filepath,
         duration_str,
@@ -362,65 +362,40 @@ pub async fn split_video_into_parts(
         ])
         .output()
         .await?;
-    trace!("Finished running ffmpeg command");
+    debug!("Finished running ffmpeg command");
     //endregion
 
     //region extract parts from playlist file (create by ffmpeg 'output.m3u8')
-    let mut res = vec![];
-    info!("Reading playlist file: {}", file_playlist.display());
-    let playlist = tokio::fs::read_to_string(&file_playlist).await;
-    if playlist.is_err() {
-        warn!("Failed to read playlist file: {}", file_playlist.display());
-    }
-    let playlist =
-        playlist.expect(format!("Failed to read playlist {}", file_playlist.display()).as_str());
-    let mut last_time = 0.0;
-    let mut time = 0.0;
-    let mut last_path: Option<PathBuf> = None;
-    let mut current_path: Option<PathBuf> = None;
-    for line in playlist.lines() {
-        if line.starts_with("#") {
-            if line.starts_with("#EXTINF:") {
-                last_time = time;
-                time = line["#EXTINF:".len()..].parse::<f64>().unwrap_or(0.0);
-            }
-            continue;
-        }
-        last_path = current_path;
-        current_path = Some(Path::join(&parent_dir, line));
-        res.push(current_path.clone().unwrap());
-    }
+    let (mut paths, second_last_time, last_time, second_last_path, last_path) =
+        extract_track_info_from_playlist_file(&parent_dir, &file_playlist).await?;
     //endregion
 
     //region maybe join last two parts
     debug!("Deciding if last two parts should be joined");
-    if let Some(last_path) = last_path {
-        if let Some(current_path) = current_path {
-            let joined_time = last_time + time;
-            if joined_time < duration_soft_cap.num_seconds() as f64 {
+    if let Some(second_last_path) = second_last_path {
+        if let Some(last_path) = last_path {
+            let joined_time = second_last_time + last_time;
+            let general_info = format!("second last part duration: {} seconds, \
+                    last part duration: {} seconds, joined duration: {} seconds (hard cap: {} seconds)",
+                    second_last_time, last_time, joined_time, duration_hard_cap.num_seconds());
+            if joined_time < duration_hard_cap.num_seconds() as f64 {
                 //region join last two parts
-                info!(
-                    "Joining last two parts. second last part duration: {} seconds, \
-                    last part duration: {} seconds, joined duration: {} seconds",
-                    last_time, time, joined_time
-                );
+                info!("Joining last two parts. {}", general_info);
 
                 //remove the part from the result that is going to be joined
-                res.pop();
+                paths.pop();
 
                 let join_txt_path = Path::join(&parent_dir, "join.txt");
                 let join_mp4_path = Path::join(&parent_dir, "join.mp4");
+                let second_last_path = clean(&second_last_path);
+                let second_last_path_str = second_last_path
+                    .to_str()
+                    .expect("to_str on path did not work!");
+                let last_path = clean(&last_path);
+                let last_path = last_path.to_str().expect("to_str on path did not work!");
                 tokio::fs::write(
                     join_txt_path.clone(),
-                    format!(
-                        "file '{}'\nfile '{}'",
-                        clean(&last_path)
-                            .to_str()
-                            .expect("to_str on path did not work!"),
-                        clean(&current_path)
-                            .to_str()
-                            .expect("to_str on path did not work!")
-                    ),
+                    format!("file '{}'\nfile '{}'", last_path, second_last_path_str,),
                 )
                 .await?;
 
@@ -431,10 +406,9 @@ pub async fn split_video_into_parts(
                 let join_txt_path = clean(join_txt_path);
                 let join_mp4_path = clean(join_mp4_path);
 
-                trace!(
+                debug!(
                     "Running ffmpeg command: ffmpeg -f concat -safe 0 -i {:?} -c copy {:?}",
-                    join_txt_path,
-                    join_mp4_path
+                    join_txt_path, join_mp4_path
                 );
                 Command::new("ffmpeg")
                     .args([
@@ -454,34 +428,100 @@ pub async fn split_video_into_parts(
                     ])
                     .output()
                     .await?;
-                trace!("Finished running ffmpeg command");
+                debug!("Finished running ffmpeg command");
                 //region remove files
-                trace!(
+                debug!(
                     "Removing files: {:?}, {:?}, {:?} {:?}",
-                    current_path,
-                    last_path,
-                    join_txt_path,
-                    file_playlist,
+                    second_last_path, last_path, join_txt_path, file_playlist,
                 );
-                tokio::fs::remove_file(current_path).await?;
+                tokio::fs::remove_file(&second_last_path).await?;
                 tokio::fs::remove_file(&last_path).await?;
                 tokio::fs::remove_file(join_txt_path).await?;
                 tokio::fs::remove_file(file_playlist).await?;
                 //endregion
-                trace!("Renaming file: {:?} to {:?}", join_mp4_path, last_path);
-                tokio::fs::rename(join_mp4_path, last_path).await?;
+                debug!(
+                    "Renaming file: {:?} to {:?}",
+                    join_mp4_path, second_last_path
+                );
+                tokio::fs::rename(join_mp4_path, second_last_path).await?;
                 info!("Joined last two parts");
                 //endregion
+            } else {
+                info!("Not joining last two parts: {}", general_info);
             }
+        } else {
+            warn!("second_last_path was Some but last_path was None. This should not happen!");
         }
+    } else {
+        warn!("second_last_path was None. This should only happen if the total length is shorter than the hard cap!");
     }
     //endregion
 
     info!("removing the original file");
     tokio::fs::remove_file(&path).await?;
 
-    info!("Split video into {} parts", res.len());
-    Ok(res)
+    info!("Split video into {} parts", paths.len());
+    Ok(paths)
+}
+
+pub fn extract_track_info_from_playlist(playlist: String) -> Result<(f64, Vec<(String, f64)>)> {
+    let mut res = vec![];
+    let mut total_time: f64 = -1.0;
+
+    let mut last_time = None;
+    for line in playlist.lines() {
+        if line.starts_with("#EXTINF:") {
+            let time_str = line.replace("#EXTINF:", "");
+            let time_str = time_str.trim();
+            let time_str = time_str.strip_suffix(",").unwrap_or(time_str);
+            last_time = Some(time_str.parse::<f64>()?);
+        } else if line.starts_with("#EXT-X-ENDLIST") {
+            break;
+        } else if line.starts_with("#EXT-X-TARGETDURATION:") {
+            let time_str = line.replace("#EXT-X-TARGETDURATION:", "");
+            total_time = time_str.parse::<f64>()?;
+        } else if let Some(time) = last_time {
+            let path = line.trim().to_string();
+            res.push((path, time));
+            last_time = None;
+        }
+    }
+
+    Ok((total_time, res))
+}
+
+///
+pub async fn extract_track_info_from_playlist_file(
+    parent_dir: &PathBuf,
+    file_playlist: &PathBuf,
+) -> Result<(Vec<PathBuf>, f64, f64, Option<PathBuf>, Option<PathBuf>)> {
+    let mut res = vec![];
+    info!("Reading playlist file: {}", file_playlist.display());
+    let playlist = tokio::fs::read_to_string(&file_playlist).await;
+    if playlist.is_err() {
+        warn!("Failed to read playlist file: {}", file_playlist.display());
+    }
+    let playlist = playlist?;
+    let mut last_time = 0.0;
+    let mut time = 0.0;
+    let mut last_path: Option<PathBuf> = None;
+    let mut current_path: Option<PathBuf> = None;
+
+    let (_total, parts) = extract_track_info_from_playlist(playlist)?;
+
+    for (path, part_time) in &parts {
+        last_time = time;
+        time = *part_time;
+        last_path = current_path;
+        current_path = Some(Path::join(parent_dir, path));
+    }
+
+    res = parts
+        .iter()
+        .map(|(path, _)| Path::join(parent_dir, path))
+        .collect::<Vec<PathBuf>>();
+
+    Ok((res, last_time, time, last_path, current_path))
 }
 
 //region get title stuff
@@ -611,3 +651,85 @@ fn duration_to_string(duration: &Duration) -> String {
     let seconds = seconds % 60;
     format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
 }
+
+//region tests
+#[cfg(test)]
+mod tests {
+    use std::fs::File;
+
+    use tokio::io::AsyncReadExt;
+
+    use super::*;
+
+    #[test]
+    fn test_duration_to_string() {
+        let duration = Duration::seconds(0);
+        let res = duration_to_string(&duration);
+        assert_eq!(res, "00:00:00");
+
+        let duration = Duration::seconds(1);
+        let res = duration_to_string(&duration);
+        assert_eq!(res, "00:00:01");
+
+        let duration = Duration::seconds(60);
+        let res = duration_to_string(&duration);
+        assert_eq!(res, "00:01:00");
+
+        let duration = Duration::seconds(3600);
+        let res = duration_to_string(&duration);
+        assert_eq!(res, "01:00:00");
+
+        let duration = Duration::seconds(3600 + 60 + 1);
+        let res = duration_to_string(&duration);
+        assert_eq!(res, "01:01:01");
+    }
+
+    #[tokio::test]
+    async fn test_extract_track_info_from_playlist() {
+        let sample_playlist_content = tokio::fs::read_to_string("tests/test_data/playlist.m3u8")
+            .await
+            .unwrap();
+
+        let (total_time, parts) = extract_track_info_from_playlist(sample_playlist_content)
+            .expect("failed to extract track info from playlist");
+        assert_eq!(total_time, 18002.0 as f64);
+        assert_eq!(parts.len(), 2);
+
+        assert_eq!(
+            parts[0],
+            ("1740252892.mp4_000.mp4".to_string(), 18001.720898 as f64)
+        );
+        assert_eq!(
+            parts[1],
+            ("1740252892.mp4_001.mp4".to_string(), 14633.040755 as f64)
+        );
+    }
+    #[tokio::test]
+    async fn test_extract_track_info_from_playlist_file() {
+        let parent_dir = Path::new("tests/test_data/");
+        let res = extract_track_info_from_playlist_file(
+            &parent_dir.into(),
+            &Path::join(parent_dir, "playlist.m3u8"),
+        )
+        .await
+        .unwrap();
+        // .expect("failed to extract track info from playlist");
+        let (parts, second_last_time, last_time, second_last_path, last_path) = res;
+        assert_eq!(parts.len(), 2);
+
+        assert_eq!(
+            second_last_path,
+            Some(Path::join(parent_dir, "1740252892.mp4_000.mp4"))
+        );
+        assert_eq!(
+            last_path,
+            Some(Path::join(parent_dir, "1740252892.mp4_001.mp4"))
+        );
+        assert_eq!(parts[0], Path::join(parent_dir, "1740252892.mp4_000.mp4"));
+        assert_eq!(parts[1], Path::join(parent_dir, "1740252892.mp4_001.mp4"));
+        assert_eq!(second_last_time, 18001.720898 as f64);
+        assert_eq!(last_time, 14633.040755 as f64);
+    }
+}
+
+//endregion

@@ -9,6 +9,14 @@ use google_bigquery::{BigDataTable, BigqueryClient};
 use google_youtube::scopes;
 use google_youtube::YoutubeClient;
 use log::{debug, error, info, trace, warn};
+use log4rs::append::console::ConsoleAppender;
+use log4rs::append::rolling_file::policy::compound::roll;
+use log4rs::append::rolling_file::policy::compound::roll::fixed_window::FixedWindowRoller;
+use log4rs::append::rolling_file::policy::compound::trigger::size::SizeTrigger;
+use log4rs::append::rolling_file::policy::{compound::CompoundPolicy, Policy};
+use log4rs::append::rolling_file::{RollingFileAppender, RollingFileAppenderBuilder};
+use log4rs::config::{Appender, Root};
+use log4rs::encode::pattern::PatternEncoder;
 use nameof::name_of;
 use simplelog::*;
 use tokio::fs::File;
@@ -29,6 +37,59 @@ const DATASET_ID: &str = "backup_data";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    initialize_logger2().await;
+    info!("Hello, world!");
+    start_backup().await?;
+    // sample().await?;
+    Ok(())
+}
+
+async fn initialize_logger2() -> Result<(), Box<dyn Error>> {
+    // // example:
+    // // [2023-04-07T13:00:03.689100600+02:00] [INFO ] downloader::src\main.rs:42 - Hello, world!
+    // let encoder = PatternEncoder::new("[{d:35}] [{h({l:5})}] {M}::{file}:{L} - {m}{n}");
+    // use log4rs::append::rolling_file::policy::compound::trigger::size::SizeTriggerDeserializer;
+    // let stdout = ConsoleAppender::builder()
+    //     .encoder(Box::new(encoder.clone()))
+    //     .build();
+    // let size_trigger = SizeTrigger::new(gb_to_bytes(1.0));
+    // // let size_trigger = SizeTrigger::new(1000);
+    // let roller = FixedWindowRoller::builder()
+    //     .build("downloader/logs/archive/downloader.{}.log", 3)
+    //     .unwrap();
+    // let policy = CompoundPolicy::new(Box::new(size_trigger), Box::new(roller));
+    // let file = RollingFileAppender::builder()
+    //     .encoder(Box::new(encoder.clone()))
+    //     .build("downloader/logs/downloader.log", Box::new(policy))
+    //     .unwrap();
+    // let config = log4rs::Config::builder()
+    //     .appender(Appender::builder().build("stdout", Box::new(stdout)))
+    //     .appender(Appender::builder().build("file", Box::new(file)))
+    //     .build(
+    //         Root::builder()
+    //             .appender("stdout")
+    //             .appender("file")
+    //             .build(LevelFilter::Debug),
+    //     )
+    //     .unwrap();
+    //
+    // let _handle = log4rs::init_config(config).unwrap();
+    log4rs::init_file("logger.yaml", Default::default()).unwrap();
+    info!("==================================================================================");
+    info!(
+        "Start of new log on {}",
+        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
+    );
+    info!("==================================================================================");
+
+    Ok(())
+}
+
+fn gb_to_bytes(gb: f32) -> u64 {
+    (gb * 1000000000.0) as u64
+}
+
+async fn initialize_logger() -> Result<(), Box<dyn Error>> {
     let log_folder = "downloader/logs/";
     tokio::fs::create_dir_all(log_folder).await?;
     let timestamp = chrono::Utc::now().format("%Y-%m-%d_%H-%M-%S").to_string();
@@ -60,9 +121,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     ])
     .unwrap();
     log_panics::init();
-    println!("Hello, world!");
-    start_backup().await?;
-    // sample().await?;
     Ok(())
 }
 

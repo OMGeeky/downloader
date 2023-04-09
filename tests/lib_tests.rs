@@ -1,8 +1,10 @@
 use std::path::{Path, PathBuf};
+use std::sync::Once;
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 // use bigquery_googleapi::BigqueryClient;
 use google_bigquery::BigqueryClient;
+use log::info;
 use log::LevelFilter;
 use simplelog::{ColorChoice, TermLogger, TerminalMode};
 
@@ -13,14 +15,17 @@ use downloader::{
     get_video_title_from_twitch_video,
 };
 
+static INIT: Once = Once::new();
 fn init_console_logging(log_level: LevelFilter) {
-    TermLogger::init(
-        log_level,
-        simplelog::Config::default(),
-        TerminalMode::Mixed,
-        ColorChoice::Auto,
-    )
-    .unwrap();
+    INIT.call_once(|| {
+        TermLogger::init(
+            log_level,
+            simplelog::Config::default(),
+            TerminalMode::Mixed,
+            ColorChoice::Auto,
+        )
+        .unwrap();
+    });
 }
 
 async fn get_sample_client() -> BigqueryClient {
@@ -80,6 +85,7 @@ const LONG_TITLE: &'static str =
 
 #[tokio::test]
 async fn get_video_title() {
+    init_console_logging(LevelFilter::Debug);
     let client = get_sample_client().await;
     let mut video = get_sample_video(&client);
 
@@ -88,12 +94,13 @@ async fn get_video_title() {
 
     video.video.title = Some(LONG_TITLE.to_string());
     let title = get_video_title_from_twitch_video(&video, 5, 20).unwrap();
-    println!("part title:\n{}", title);
+    info!("part title:\n{}", title);
     assert_eq!(title, "[2021-01-01][Part 05/20] long title with over a hundred characters that is definitely going to be...");
 }
 
 #[tokio::test]
 async fn get_video_title_single_part() {
+    init_console_logging(LevelFilter::Debug);
     let client = get_sample_client().await;
     let mut video = get_sample_video(&client);
 
@@ -102,7 +109,7 @@ async fn get_video_title_single_part() {
 
     video.video.title = Some(LONG_TITLE.to_string());
     let title = get_video_title_from_twitch_video(&video, 1, 1).unwrap();
-    println!("single part title:\n{}", title);
+    info!("single part title:\n{}", title);
     assert_eq!(
         title,
         "long title with over a hundred characters that is definitely going to be..."
@@ -111,6 +118,7 @@ async fn get_video_title_single_part() {
 
 #[tokio::test]
 async fn get_playlist_title() {
+    init_console_logging(LevelFilter::Debug);
     let client = get_sample_client().await;
     let mut video = get_sample_video(&client);
 
@@ -119,7 +127,7 @@ async fn get_playlist_title() {
 
     video.video.title = Some(LONG_TITLE.to_string());
     let title = get_playlist_title_from_twitch_video(&video).unwrap();
-    println!("playlist title:\n{}", title);
+    info!("playlist title:\n{}", title);
     assert_eq!(
         title,
         "long title with over a hundred characters that is definitely going to be..."
@@ -128,28 +136,19 @@ async fn get_playlist_title() {
 
 #[tokio::test]
 async fn get_video_prefix() {
+    init_console_logging(LevelFilter::Debug);
     let client = get_sample_client().await;
     let video = get_sample_video(&client);
 
     let prefix = get_video_prefix_from_twitch_video(&video, 5, 20).unwrap();
-    println!("prefix:\n{}", prefix);
+    info!("prefix:\n{}", prefix);
     assert_eq!(prefix, "[2021-01-01][Part 05/20]");
 }
 
 #[tokio::test]
-async fn split_video_into_parts() {
+async fn split_video_into_parts_with_join() {
     init_console_logging(LevelFilter::Debug);
-
-    //region prepare test data
-    let video_source = Path::new("tests/test_data/short_video/short_video.mp4");
-    let tmp_folder_path = Path::new("tests/test_data/tmp/");
-    let video_path = Path::join(tmp_folder_path, "short_video/short_video.mp4");
-    if tmp_folder_path.exists() {
-        std::fs::remove_dir_all(tmp_folder_path).unwrap();
-    }
-    std::fs::create_dir_all(video_path.parent().unwrap()).unwrap();
-    std::fs::copy(video_source, &video_path).unwrap();
-    //endregion
+    let (tmp_folder_path, video_path) = prepare_existing_video_test_data(1);
 
     let parts = downloader::split_video_into_parts(
         PathBuf::from(&video_path),
@@ -163,6 +162,40 @@ async fn split_video_into_parts() {
     //endregion
 
     let parts = parts.expect("failed to split video into parts");
-    println!("parts: {:?}", parts);
-    assert_eq!(parts.len(), 5);
+    info!("parts: {:?}", parts);
+    assert_eq!(5, parts.len(),);
+}
+
+#[tokio::test]
+async fn split_video_into_parts_without_join() {
+    init_console_logging(LevelFilter::Debug);
+    let (tmp_folder_path, video_path) = prepare_existing_video_test_data(2);
+
+    let parts = downloader::split_video_into_parts(
+        PathBuf::from(&video_path),
+        chrono::Duration::seconds(5),
+        chrono::Duration::seconds(6),
+    )
+    .await;
+
+    //region clean up
+    std::fs::remove_dir_all(tmp_folder_path).unwrap();
+    //endregion
+
+    let parts = parts.expect("failed to split video into parts");
+    info!("parts: {:?}", parts);
+    assert_eq!(6, parts.len(),);
+}
+
+fn prepare_existing_video_test_data(temp_subname: i32) -> (PathBuf, PathBuf) {
+    let video_source = Path::new("tests/test_data/short_video/short_video.mp4");
+    let tmp_folder_path = format!("tests/test_data/tmp_{}", temp_subname);
+    let tmp_folder_path: PathBuf = tmp_folder_path.as_str().into();
+    let video_path = Path::join(&tmp_folder_path, "short_video/short_video.mp4");
+    if tmp_folder_path.exists() {
+        std::fs::remove_dir_all(&tmp_folder_path).unwrap();
+    }
+    std::fs::create_dir_all(video_path.parent().unwrap()).unwrap();
+    std::fs::copy(video_source, &video_path).unwrap();
+    (tmp_folder_path.to_path_buf(), video_path)
 }
