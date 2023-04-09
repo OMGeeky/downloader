@@ -2,3 +2,4 @@
 *
 # include the build
 !build/downloader
+!logger.yaml

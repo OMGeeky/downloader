@@ -1,12 +1,10 @@
 use std::path::{Path, PathBuf};
-use std::sync::Once;
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 // use bigquery_googleapi::BigqueryClient;
 use google_bigquery::BigqueryClient;
-use log::info;
 use log::LevelFilter;
-use simplelog::{ColorChoice, TermLogger, TerminalMode};
+use log::{debug, info};
 
 use downloader;
 use downloader::data::{Streamers, VideoData, VideoMetadata, Videos};
@@ -15,17 +13,11 @@ use downloader::{
     get_video_title_from_twitch_video,
 };
 
-static INIT: Once = Once::new();
 fn init_console_logging(log_level: LevelFilter) {
-    INIT.call_once(|| {
-        TermLogger::init(
-            log_level,
-            simplelog::Config::default(),
-            TerminalMode::Mixed,
-            ColorChoice::Auto,
-        )
-        .unwrap();
-    });
+    let _ = env_logger::builder()
+        .filter_level(log_level)
+        .is_test(true)
+        .try_init();
 }
 
 async fn get_sample_client() -> BigqueryClient {
@@ -94,7 +86,7 @@ async fn get_video_title() {
 
     video.video.title = Some(LONG_TITLE.to_string());
     let title = get_video_title_from_twitch_video(&video, 5, 20).unwrap();
-    info!("part title:\n{}", title);
+    info!("part title: {}", title);
     assert_eq!(title, "[2021-01-01][Part 05/20] long title with over a hundred characters that is definitely going to be...");
 }
 
@@ -109,7 +101,7 @@ async fn get_video_title_single_part() {
 
     video.video.title = Some(LONG_TITLE.to_string());
     let title = get_video_title_from_twitch_video(&video, 1, 1).unwrap();
-    info!("single part title:\n{}", title);
+    info!("single part title: {}", title);
     assert_eq!(
         title,
         "long title with over a hundred characters that is definitely going to be..."
@@ -123,14 +115,14 @@ async fn get_playlist_title() {
     let mut video = get_sample_video(&client);
 
     let title = get_playlist_title_from_twitch_video(&video).unwrap();
-    assert_eq!(title, "Test Video");
+    assert_eq!("[2021-01-01] Test Video", title);
 
     video.video.title = Some(LONG_TITLE.to_string());
     let title = get_playlist_title_from_twitch_video(&video).unwrap();
-    info!("playlist title:\n{}", title);
+    info!("playlist title: {}", title);
     assert_eq!(
-        title,
-        "long title with over a hundred characters that is definitely going to be..."
+        "[2021-01-01] long title with over a hundred characters that is definitel...",
+        title
     );
 }
 
@@ -141,7 +133,7 @@ async fn get_video_prefix() {
     let video = get_sample_video(&client);
 
     let prefix = get_video_prefix_from_twitch_video(&video, 5, 20).unwrap();
-    info!("prefix:\n{}", prefix);
+    info!("prefix: {}", prefix);
     assert_eq!(prefix, "[2021-01-01][Part 05/20]");
 }
 
@@ -162,8 +154,14 @@ async fn split_video_into_parts_with_join() {
     //endregion
 
     let parts = parts.expect("failed to split video into parts");
-    info!("parts: {:?}", parts);
+    debug!("parts: {:?}", parts);
     assert_eq!(5, parts.len(),);
+    for (i, part) in parts.iter().enumerate() {
+        assert_eq!(
+            format!("short_video_00{}.mp4", i),
+            part.file_name().unwrap().to_str().unwrap()
+        );
+    }
 }
 
 #[tokio::test]
@@ -183,8 +181,14 @@ async fn split_video_into_parts_without_join() {
     //endregion
 
     let parts = parts.expect("failed to split video into parts");
-    info!("parts: {:?}", parts);
+    debug!("parts: {:?}", parts);
     assert_eq!(6, parts.len(),);
+    for (i, part) in parts.iter().enumerate() {
+        assert_eq!(
+            format!("short_video_00{}.mp4", i),
+            part.file_name().unwrap().to_str().unwrap()
+        );
+    }
 }
 
 fn prepare_existing_video_test_data(temp_subname: i32) -> (PathBuf, PathBuf) {

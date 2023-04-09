@@ -260,9 +260,10 @@ async fn upload_video_to_youtube<'a>(
     info!("Video has {} parts", part_count);
     for (i, path) in video_path.iter().enumerate() {
         info!("Uploading part {} of {}", i + 1, part_count);
-        let title = get_video_title_from_twitch_video(&video, i, part_count)?;
+        let title = get_video_title_from_twitch_video(&video, i + 1, part_count)?;
         info!("youtube part Title: {}", title);
-        let description = get_video_description_from_twitch_video(&video, i, part_count, &config)?;
+        let description =
+            get_video_description_from_twitch_video(&video, i + 1, part_count, &config)?;
 
         let privacy = match video.streamer.public_videos_default {
             Some(true) => PrivacyStatus::Public,
@@ -319,13 +320,27 @@ pub async fn split_video_into_parts(
     let file_playlist = clean(Path::join(&parent_dir, "output.m3u8"));
     //endregion
     info!(
-        "Splitting video: {:?}\n\tinto parts with soft cap duration: {} minutes and hard cap duration: {} minutes",
+        "Splitting video: {:?} into parts with soft cap duration: {} minutes and hard cap duration: {} minutes",
         filepath,
         duration_soft_cap.num_minutes(),
         duration_hard_cap.num_minutes()
     );
 
-    let output_path_pattern = format!("{}_%03d.mp4", filepath.to_str().unwrap()); //TODO: maybe make the number of digits dynamic
+    let output_path_pattern = Path::join(
+        &parent_dir,
+        format!(
+            "{}_%03d.mp4",
+            filepath
+                .file_stem()
+                .expect("could not get file_stem from path")
+                .to_str()
+                .expect("could not convert file_stem to str")
+        ),
+    )
+    .to_str()
+    .expect("could not convert path to string")
+    .to_string(); //TODO: maybe make the number of digits dynamic
+    debug!("output path pattern: {}", output_path_pattern);
     let duration_str = duration_to_string(&duration_soft_cap);
 
     //region run ffmpeg split command
@@ -593,7 +608,9 @@ pub fn get_video_title_from_twitch_video(
             get_video_prefix_from_twitch_video(video, part, total_parts)?
         ),
     };
-    let title = get_playlist_title_from_twitch_video(video)?;
+
+    let title = video.video.title.as_ref().ok_or("Video has no title")?;
+    let title = cap_long_title(title)?;
 
     let res = format!("{}{}", prefix, title);
     Ok(res)
@@ -605,13 +622,20 @@ const PREFIX_LENGTH: usize = 24;
 pub fn get_playlist_title_from_twitch_video(video: &data::VideoData) -> Result<String> {
     trace!("get playlist title from twitch video");
     let title = video.video.title.as_ref().ok_or("Video has no title")?;
+    let date_str = get_date_string_from_video(video)?;
+    let title = format!("{} {}", date_str, title,);
+    let title = cap_long_title(title)?;
+    Ok(title)
+}
+pub fn cap_long_title<S: Into<String>>(title: S) -> Result<String> {
+    let title = title.into();
     const SEPARATOR_LEN: usize = 1;
     if title.len() > MAX_VIDEO_TITLE_LENGTH - PREFIX_LENGTH - SEPARATOR_LEN {
-        let res = format!(
+        let shortened = format!(
             "{}...",
             &title[0..MAX_VIDEO_TITLE_LENGTH - PREFIX_LENGTH - SEPARATOR_LEN - 3]
         );
-        return Ok(res);
+        return Ok(shortened);
     }
     Ok(title.to_string())
 }
@@ -625,18 +649,22 @@ pub fn get_video_prefix_from_twitch_video(
     info!("video: {:?}", video);
     info!("video.video: {:?}", video.video);
     info!("video.video.created_at: {:?}", video.video.created_at);
+    let res = get_date_string_from_video(video)?;
+    let res = format!("{}[Part {:0>2}/{:0>2}]", res, part, total_parts);
+    Ok(res)
+}
+
+fn get_date_string_from_video(video: &VideoData) -> Result<String> {
     let created_at = video
         .video
         .created_at
         .ok_or(format!("Video has no created_at time: {:?}", video.video).as_str())?;
     // let created_at = created_at.format("%Y-%m-%d");
     let res = format!(
-        "[{:0>4}-{:0>2}-{:0>2}][Part {:0>2}/{:0>2}]",
+        "[{:0>4}-{:0>2}-{:0>2}]",
         created_at.year(),
         created_at.month(),
         created_at.day(),
-        part,
-        total_parts
     );
     Ok(res)
 }

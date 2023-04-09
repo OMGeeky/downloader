@@ -20,3 +20,4 @@ log4rs = { version = "1.2.0" , features = ["compound_policy", "default", "size_t
 path-clean = "1.0.1"
 
 log-panics = { version = "2", features = ["with-backtrace"]}
+env_logger = "0.10.0"

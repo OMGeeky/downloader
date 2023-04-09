@@ -74,7 +74,16 @@ async fn initialize_logger2() -> Result<(), Box<dyn Error>> {
     //     .unwrap();
     //
     // let _handle = log4rs::init_config(config).unwrap();
-    log4rs::init_file("logger.yaml", Default::default()).unwrap();
+    let logger_config_path = Path::new("logger.yaml");
+    let path = &logger_config_path
+        .canonicalize()
+        .expect(format!("could not find the file: {:?}", logger_config_path).as_str());
+    println!(
+        "Log config file path: {:?} => {:?}",
+        logger_config_path, path
+    );
+    log4rs::init_file(path, Default::default())
+        .expect("Failed to initialize the logger from the file");
     info!("==================================================================================");
     info!(
         "Start of new log on {}",
