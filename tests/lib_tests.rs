@@ -79,11 +79,16 @@ const LONG_TITLE: &'static str =
 async fn get_video_title() {
     init_console_logging(LevelFilter::Debug);
     let client = get_sample_client().await;
-    let mut video = get_sample_video(&client);
+    let video = get_sample_video(&client);
 
     let title = get_video_title_from_twitch_video(&video, 5, 20).unwrap();
     assert_eq!(title, "[2021-01-01][Part 05/20] Test Video");
-
+}
+#[tokio::test]
+async fn get_video_long_title() {
+    init_console_logging(LevelFilter::Debug);
+    let client = get_sample_client().await;
+    let mut video = get_sample_video(&client);
     video.video.title = Some(LONG_TITLE.to_string());
     let title = get_video_title_from_twitch_video(&video, 5, 20).unwrap();
     info!("part title: {}", title);
@@ -94,17 +99,23 @@ async fn get_video_title() {
 async fn get_video_title_single_part() {
     init_console_logging(LevelFilter::Debug);
     let client = get_sample_client().await;
-    let mut video = get_sample_video(&client);
+    let video = get_sample_video(&client);
 
     let title = get_video_title_from_twitch_video(&video, 1, 1).unwrap();
-    assert_eq!(title, "Test Video");
+    assert_eq!(title, "[2021-01-01] Test Video");
+}
+#[tokio::test]
+async fn get_video_long_title_single_part() {
+    init_console_logging(LevelFilter::Debug);
+    let client = get_sample_client().await;
+    let mut video = get_sample_video(&client);
 
     video.video.title = Some(LONG_TITLE.to_string());
     let title = get_video_title_from_twitch_video(&video, 1, 1).unwrap();
     info!("single part title: {}", title);
     assert_eq!(
         title,
-        "long title with over a hundred characters that is definitely going to be..."
+        "[2021-01-01] long title with over a hundred characters that is definitely going to be..."
     );
 }
 
@@ -112,10 +123,17 @@ async fn get_video_title_single_part() {
 async fn get_playlist_title() {
     init_console_logging(LevelFilter::Debug);
     let client = get_sample_client().await;
-    let mut video = get_sample_video(&client);
+    let video = get_sample_video(&client);
 
     let title = get_playlist_title_from_twitch_video(&video).unwrap();
     assert_eq!("[2021-01-01] Test Video", title);
+}
+
+#[tokio::test]
+async fn get_playlist_long_title() {
+    init_console_logging(LevelFilter::Debug);
+    let client = get_sample_client().await;
+    let mut video = get_sample_video(&client);
 
     video.video.title = Some(LONG_TITLE.to_string());
     let title = get_playlist_title_from_twitch_video(&video).unwrap();

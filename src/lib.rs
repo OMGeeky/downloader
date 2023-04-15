@@ -664,7 +664,6 @@ pub fn get_video_description_from_twitch_video(
         .clone()
         .unwrap_or("<NO DESCRIPTION FOUND>".to_string());
 
-
     let description = description
         .replace("$$video_title$$", &video_title)
         .replace("$$video_url$$", &video_url)
@@ -689,7 +688,7 @@ pub fn get_video_title_from_twitch_video(
 ) -> Result<String> {
     trace!("get video title from twitch video");
     let prefix = match total_parts {
-        1 => "".to_string(),
+        1 => format!("{} ", get_date_string_from_video(&video)?),
         _ => format!(
             "{} ",
             get_video_prefix_from_twitch_video(video, part, total_parts)?
