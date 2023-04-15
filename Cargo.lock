@@ -384,10 +384,12 @@ dependencies = [
 
 [[package]]
 name = "downloader_config"
-version = "0.3.0"
-source = "git+https://github.com/OMGeeky/downloader_config#a484c2ece44554f47d72a3e8541abc0dda9c78bb"
+version = "0.4.0"
+source = "git+https://github.com/OMGeeky/downloader_config#c3cff264c2bcb3815a8d5652864399a5d436eaad"
 dependencies = [
  "log",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2071,8 +2073,8 @@ dependencies = [
 
 [[package]]
 name = "twitch_data"
-version = "0.1.7"
-source = "git+https://github.com/OMGeeky/twitch_data#b28cb4670ebf08fc2952682da2b1807efa4e939c"
+version = "0.1.8"
+source = "git+https://github.com/OMGeeky/twitch_data#61762208ad676a2990a2f4957fc5cd35b9da3866"
 dependencies = [
  "async-recursion",
  "chrono",

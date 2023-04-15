@@ -263,7 +263,7 @@ async fn backup_video<'a>(
     )
     .await?;
     video_parts.sort();
-
+    trace!("Creating youtube client");
     let youtube_client = YoutubeClient::new(
         Some(config.youtube_client_secret_path.as_str()),
         vec![
@@ -283,6 +283,9 @@ async fn backup_video<'a>(
     .await
     .map_err(|e| anyhow!("{}", e))?;
     info!("Uploading video to youtube");
+    debug!("Video parts: {:?}", video_parts);
+    debug!("Video: {:?}", video);
+    debug!("Config: {:?}", config);
     let res = upload_video_to_youtube(&video_parts, video, &youtube_client, config).await;
     if let Err(e) = res {
         info!("Error uploading video: {}", e);
