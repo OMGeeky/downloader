@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 // use bigquery_googleapi::BigqueryClient;
-use google_bigquery::BigqueryClient;
+use google_bigquery_v2::prelude::*;
 use log::LevelFilter;
 use log::{debug, info};
 
@@ -35,7 +35,7 @@ fn get_sample_video(client: &BigqueryClient) -> VideoData {
         video: Videos {
             created_at: Some(get_utc_from_string("2021-01-01T00:00:00")),
             video_id: 1,
-            client: Some(client),
+            client: client.clone(),
             title: Some("Test Video".to_string()),
             description: Some("Test Description".to_string()),
             bool_test: Some(true),
@@ -50,14 +50,14 @@ fn get_sample_video(client: &BigqueryClient) -> VideoData {
         },
         metadata: VideoMetadata {
             video_id: 1,
-            client: Some(client),
+            client: client.clone(),
             backed_up: Some(false),
             ..Default::default()
         },
         streamer: Streamers {
             display_name: Some("NoPixel VODs".to_string()),
             login: "nopixelvods".to_string(),
-            client: Some(client),
+            client: client.clone(),
             youtube_user: Some("NoPixel VODs".to_string()),
             watched: Some(true),
             public_videos_default: Some(false),

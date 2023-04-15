@@ -364,15 +364,15 @@ dependencies = [
 
 [[package]]
 name = "downloader"
-version = "0.1.4"
+version = "0.2.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "downloader_config",
  "env_logger",
- "google-bigquery2",
- "google_bigquery",
+ "google_bigquery_v2",
  "google_youtube",
- "log 0.4.17",
+ "log",
  "log-panics",
  "log4rs",
  "nameof",
@@ -387,7 +387,7 @@ name = "downloader_config"
 version = "0.3.0"
 source = "git+https://github.com/OMGeeky/downloader_config#a484c2ece44554f47d72a3e8541abc0dda9c78bb"
 dependencies = [
- "log 0.4.17",
+ "log",
 ]
 
 [[package]]
@@ -419,7 +419,7 @@ checksum = "85cdab6a89accf66733ad5a1693a4dcced6aeff64602b634530dd73c1f3ee9f0"
 dependencies = [
  "humantime",
  "is-terminal",
- "log 0.4.17",
+ "log",
  "regex",
  "termcolor",
 ]
@@ -452,7 +452,7 @@ source = "git+https://github.com/OMGeeky/exponential_backoff#3cc1a85122df47af0e5
 dependencies = [
  "chrono",
  "google-youtube3",
- "log 0.4.17",
+ "log",
  "rand",
  "reqwest",
  "serde_json",
@@ -635,34 +635,34 @@ dependencies = [
  "http",
  "hyper",
  "itertools",
- "mime 0.3.17",
+ "mime",
  "serde",
  "serde_json",
  "serde_with",
  "tokio",
  "tower-service",
  "url 1.7.2",
- "yup-oauth2 8.1.1",
+ "yup-oauth2",
 ]
 
 [[package]]
 name = "google-bigquery2"
-version = "4.0.1+20220222"
+version = "5.0.2+20230114"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c66a8ea4e74f9512ea85b935e4cb30d7e75c5a01826b817b5f11c7d68a67bf15"
+checksum = "fc3eb8b026c61ff94b9b1badbdcc64e1fd330c0ee8d981aa180853a3d402e1a3"
 dependencies = [
+ "anyhow",
+ "google-apis-common",
  "http",
  "hyper",
  "hyper-rustls",
  "itertools",
- "mime 0.2.6",
+ "mime",
  "serde",
- "serde_derive",
  "serde_json",
  "tokio",
  "tower-service",
  "url 1.7.2",
- "yup-oauth2 7.0.1",
 ]
 
 [[package]]
@@ -677,7 +677,7 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "itertools",
- "mime 0.3.17",
+ "mime",
  "serde",
  "serde_json",
  "tokio",
@@ -686,28 +686,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "google_bigquery"
-version = "0.1.0"
-source = "git+https://github.com/OMGeeky/google_bigquery#95c14859aa6f712d1f28e97d6aa26ced845dc383"
+name = "google_bigquery_v2"
+version = "0.2.1"
+source = "git+https://github.com/OMGeeky/google_bigquery_v2#fcbaf6926c58250e10706551a462020015cce002"
 dependencies = [
  "async-trait",
  "chrono",
+ "env_logger",
  "google-bigquery2",
- "google_bigquery_derive",
- "reqwest",
- "serde",
+ "google_bigquery_v2_derive",
+ "log",
+ "nameof",
  "serde_json",
  "tokio",
 ]
 
 [[package]]
-name = "google_bigquery_derive"
+name = "google_bigquery_v2_derive"
 version = "0.0.1"
-source = "git+https://github.com/OMGeeky/google_bigquery#95c14859aa6f712d1f28e97d6aa26ced845dc383"
+source = "git+https://github.com/OMGeeky/google_bigquery_v2#fcbaf6926c58250e10706551a462020015cce002"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -719,7 +720,7 @@ dependencies = [
  "downloader_config",
  "exponential_backoff",
  "google-youtube3",
- "log 0.4.17",
+ "log",
  "reqwest",
  "serde",
  "serde_json",
@@ -855,7 +856,7 @@ checksum = "1788965e61b367cd03a62950836d5cd41560c3577d90e40e0819373194d1661c"
 dependencies = [
  "http",
  "hyper",
- "log 0.4.17",
+ "log",
  "rustls",
  "rustls-native-certs",
  "tokio",
@@ -1056,15 +1057,6 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.3.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e19e8d5c34a3e0e2223db8e060f9e8264aeeb5c5fc64a4ee9965c062211c024b"
-dependencies = [
- "log 0.4.17",
-]
-
-[[package]]
-name = "log"
 version = "0.4.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
@@ -1086,7 +1078,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68f9dd8546191c1850ecf67d22f5ff00a935b890d0e84713159a55495cc2ac5f"
 dependencies = [
  "backtrace",
- "log 0.4.17",
+ "log",
 ]
 
 [[package]]
@@ -1103,7 +1095,7 @@ dependencies = [
  "fnv",
  "humantime",
  "libc",
- "log 0.4.17",
+ "log",
  "log-mdc",
  "parking_lot",
  "serde",
@@ -1130,15 +1122,6 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "mime"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba626b8a6de5da682e1caa06bdb42a335aee5a84db8e5046a3e8ab17ba0a3ae0"
-dependencies = [
- "log 0.3.9",
-]
-
-[[package]]
-name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
@@ -1159,7 +1142,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b9d9a46eff5b4ff64b45a9e316a6d1e0bc719ef429cbec4dc630684212bfdf9"
 dependencies = [
  "libc",
- "log 0.4.17",
+ "log",
  "wasi 0.11.0+wasi-snapshot-preview1",
  "windows-sys 0.45.0",
 ]
@@ -1178,7 +1161,7 @@ checksum = "07226173c32f2926027b63cce4bcd8076c3552846cbe7925f3aaffeac0a3b92e"
 dependencies = [
  "lazy_static",
  "libc",
- "log 0.4.17",
+ "log",
  "openssl",
  "openssl-probe",
  "openssl-sys",
@@ -1472,8 +1455,8 @@ dependencies = [
  "hyper-tls",
  "ipnet",
  "js-sys",
- "log 0.4.17",
- "mime 0.3.17",
+ "log",
+ "mime",
  "native-tls",
  "once_cell",
  "percent-encoding 2.2.0",
@@ -1534,7 +1517,7 @@ version = "0.20.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fff78fc74d175294f4e83b28343315ffcfb114b156f0185e9741cb5570f50e2f"
 dependencies = [
- "log 0.4.17",
+ "log",
  "ring",
  "sct",
  "webpki",
@@ -1547,18 +1530,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0167bac7a9f490495f3c33013e7722b53cb087ecbe082fb0c6387c96f634ea50"
 dependencies = [
  "openssl-probe",
- "rustls-pemfile 1.0.2",
+ "rustls-pemfile",
  "schannel",
  "security-framework",
-]
-
-[[package]]
-name = "rustls-pemfile"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ee86d63972a7c661d1536fefe8c3c8407321c3df668891286de28abcd087360"
-dependencies = [
- "base64 0.13.1",
 ]
 
 [[package]]
@@ -1775,7 +1749,7 @@ version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acee08041c5de3d5048c8b3f6f13fafb3026b24ba43c6a695a0c76179b844369"
 dependencies = [
- "log 0.4.17",
+ "log",
  "termcolor",
  "time 0.3.20",
 ]
@@ -2106,7 +2080,7 @@ dependencies = [
  "exponential_backoff",
  "futures",
  "indicatif",
- "log 0.4.17",
+ "log",
  "reqwest",
  "serde",
  "serde_json",
@@ -2250,7 +2224,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ce8a968cb1cd110d136ff8b819a556d6fb6d919363c61534f6860c7eb172ba0"
 dependencies = [
- "log 0.4.17",
+ "log",
  "try-lock",
 ]
 
@@ -2283,7 +2257,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95ce90fd5bcc06af55a641a86428ee4229e44e07033963a2290a8e241607ccb9"
 dependencies = [
  "bumpalo",
- "log 0.4.17",
+ "log",
  "once_cell",
  "proc-macro2",
  "quote",
@@ -2572,33 +2546,6 @@ dependencies = [
 
 [[package]]
 name = "yup-oauth2"
-version = "7.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98748970d2ddf05253e6525810d989740334aa7509457864048a829902db76f3"
-dependencies = [
- "anyhow",
- "async-trait",
- "base64 0.13.1",
- "futures",
- "http",
- "hyper",
- "hyper-rustls",
- "itertools",
- "log 0.4.17",
- "percent-encoding 2.2.0",
- "rustls",
- "rustls-pemfile 0.3.0",
- "seahash",
- "serde",
- "serde_json",
- "time 0.3.20",
- "tokio",
- "tower-service",
- "url 2.3.1",
-]
-
-[[package]]
-name = "yup-oauth2"
 version = "8.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1da09943413fec574fbc624011874b716e4b446f83d43f8248a5903e7ffc5e52"
@@ -2611,10 +2558,10 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "itertools",
- "log 0.4.17",
+ "log",
  "percent-encoding 2.2.0",
  "rustls",
- "rustls-pemfile 1.0.2",
+ "rustls-pemfile",
  "seahash",
  "serde",
  "serde_json",

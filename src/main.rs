@@ -4,8 +4,8 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::path::Path;
 
-use google_bigquery;
-use google_bigquery::{BigDataTable, BigqueryClient};
+use anyhow::{anyhow, Result};
+use google_bigquery_v2::prelude::*;
 use google_youtube::scopes;
 use google_youtube::YoutubeClient;
 use log::{debug, error, info, trace, warn};
@@ -189,20 +189,33 @@ async fn sample_twitch<'a>(client: &TwitchClient<'a>) -> Result<(), Box<dyn Erro
 
 async fn sample_bigquery<'a>(client: &'a BigqueryClient) -> Result<(), Box<dyn Error>> {
     // let x = VideoMetadata::from_pk(&client, 1638184921).await?;
-    let video_metadata = VideoMetadata::create_and_load_from_pk(&client, 1638184921).await?;
-    info!("got video_metadata by id: {:?}", video_metadata);
+    // let video_metadata = VideoMetadata::create_and_load_from_pk(&client, 1638184921).await?;
+    // info!("got video_metadata by id: {:?}", video_metadata);
 
-    let video_metadata = VideoMetadata::load_by_field(
-        &client,
-        name_of!(backed_up in VideoMetadata),
-        Some(true),
-        10,
-    )
-    .await?;
+    let video_metadata = VideoMetadata::select()
+        .with_client(client.clone())
+        .add_where_eq(name_of!(backed_up in VideoMetadata), Some(&true)).map_err(|e|anyhow!("{}",e))?
+        .set_limit(10)
+        .build_query()
+        .map_err(|e| anyhow!("{}", e))?
+        .run()
+        .await
+        .map_err(|e| anyhow!("{}", e))?
+        .map_err_with_data("Select has to return data")
+        .map_err(|e| anyhow!("{}", e))?;
     print_vec_sample("got video_metadata by backed_up:", video_metadata);
 
-    let watched_streamers =
-        Streamers::load_by_field(&client, name_of!(watched in Streamers), Some(true), 100).await?;
+    let watched_streamers = Streamers::select()
+        .with_client(client.clone())
+        .add_where_eq(name_of!(watched in Streamers), Some(&true)).map_err(|e|anyhow!("{}",e))?
+        .set_limit(100)
+        .build_query()
+        .map_err(|e| anyhow!("{}", e))?
+        .run()
+        .await
+        .map_err(|e| anyhow!("{}", e))?
+        .map_err_with_data("Select has to return data")
+        .map_err(|e| anyhow!("{}", e))?;
     print_vec_sample("got watched_streamers:", watched_streamers);
 
     fn print_vec_sample<T: Debug>(message: &str, watched_streamers: Vec<T>) {

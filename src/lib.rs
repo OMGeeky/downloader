@@ -6,10 +6,11 @@ use std::io::stdin;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
+use anyhow::{anyhow, Result};
 use chrono::{Datelike, Duration};
 use downloader_config;
 use downloader_config::Config;
-use google_bigquery::{BigDataTable, BigqueryClient};
+use google_bigquery_v2::prelude::*;
 use google_youtube::{scopes, PrivacyStatus, YoutubeClient};
 use log::{debug, error, info, trace, warn};
 use nameof::name_of;
@@ -19,10 +20,10 @@ use tokio::process::Command;
 use twitch_data::{TwitchClient, Video};
 
 use crate::data::{Streamers, VideoData};
+use crate::prelude::*;
 
 pub mod data;
-
-type Result<T> = std::result::Result<T, Box<dyn Error>>;
+pub mod prelude;
 
 async fn check_for_new_videos<'a>(
     db_client: &BigqueryClient,
@@ -38,10 +39,11 @@ async fn check_for_new_videos<'a>(
         let videos = get_twitch_videos_from_streamer(&streamer, &twitch_client).await?;
         info!("Got {} videos for {}", videos.len(), streamer.login);
         for video in videos {
-            let video_id = video.id.parse()?;
-            let loaded_video = data::Videos::load_from_pk(db_client, video_id).await?;
-            if loaded_video.is_none() {
-                let video = data::VideoData::from_twitch_video(&video, &db_client)?;
+            let video_id: &i64 = &video.id.parse()?;
+            let loaded_video = data::Videos::get_by_pk(db_client.clone(), video_id).await;
+            if loaded_video.is_err() {
+                let mut video = data::VideoData::from_twitch_video(&video, db_client.clone())
+                    .map_err(|e| anyhow::anyhow!("{}", e))?;
                 info!(
                     "Video {} is not in the database, adding it: {}",
                     video_id,
@@ -51,8 +53,8 @@ async fn check_for_new_videos<'a>(
                         .as_ref()
                         .unwrap_or(&"TITLE NOT FOUND".to_string())
                 );
-                video.video.save_to_bigquery().await?;
-                video.metadata.save_to_bigquery().await?;
+                video.video.save().await.map_err(|e| anyhow!("{}", e))?;
+                video.metadata.save().await;
             }
         }
     }
@@ -60,21 +62,33 @@ async fn check_for_new_videos<'a>(
 }
 
 async fn get_twitch_videos_from_streamer<'a>(
-    streamer: &'a Streamers<'a>,
+    streamer: &Streamers,
     twitch_client: &TwitchClient<'a>,
 ) -> Result<Vec<Video>> {
     trace!("Getting videos from streamer {}", streamer.login);
     let videos = twitch_client
         .get_videos_from_login(&streamer.login, None)
-        .await?;
+        .await
+        .map_err(|e| anyhow!("{}", e))?;
 
     Ok(videos)
 }
 
 async fn get_watched_streamers(client: &BigqueryClient) -> Result<Vec<Streamers>> {
     trace!("Getting watched streamers");
-    let watched =
-        Streamers::load_by_field(client, name_of!(watched in Streamers), Some(true), 1000).await?;
+    let watched = Streamers::select()
+        .with_client(client.clone())
+        .add_where_eq(name_of!(watched in Streamers), Some(&true))
+        .map_err(|e| anyhow!("{}", e))?
+        .set_limit(1000)
+        .build_query()
+        .map_err(|e| anyhow!("{}", e))?
+        .run()
+        .await
+        .map_err(|e| anyhow!("{}", e))?;
+    let watched = watched
+        .map_err_with_data("Error getting watched streamers")
+        .map_err(|e| anyhow!("{}", e))?;
     Ok(watched)
 }
 
@@ -88,9 +102,13 @@ pub async fn start_backup() -> Result<()> {
     let youtube_client_secret = &config.youtube_client_secret_path.as_str();
 
     info!("creating BigqueryClient");
-    let client = BigqueryClient::new(project_id, dataset_id, Some(service_account_path)).await?;
+    let client = BigqueryClient::new(project_id, dataset_id, Some(service_account_path))
+        .await
+        .map_err(|e| anyhow!("{}", e))?;
     info!("creating twitch client");
-    let twitch_client = twitch_data::get_client().await?;
+    let twitch_client = twitch_data::get_client()
+        .await
+        .map_err(|e| anyhow!("{}", e))?;
     info!("Starting main loop");
     'main_loop: loop {
         trace!("Beginning of main loop");
@@ -98,7 +116,9 @@ pub async fn start_backup() -> Result<()> {
         trace!("Checking for new videos");
         check_for_new_videos(&client, &twitch_client).await?;
         trace!("backing up not downloaded videos");
-        backup_not_downloaded_videos(&client, &twitch_client, &config).await?;
+        backup_not_downloaded_videos(&client, &twitch_client, &config)
+            .await
+            .map_err(|e| anyhow!("{}", e))?;
 
         //sleep for an hour
         info!("Sleeping for an hour");
@@ -109,16 +129,21 @@ pub async fn start_backup() -> Result<()> {
 
 async fn get_not_downloaded_videos_from_db(
     client: &BigqueryClient,
-) -> Result<impl Iterator<Item = impl Future<Output = Result<Option<data::VideoData>>>>> {
+) -> Result<impl Iterator<Item = impl Future<Output = Result<Option<data::VideoData>>>+ '_>+ '_> {
     //TODO: make sure that this is sorted by date (oldest first)
     info!("getting not downloaded videos from db (metadata)");
-    let mut video_metadata_list = data::VideoMetadata::load_by_field(
-        &client,
-        name_of!(backed_up in data::VideoMetadata),
-        Some(false),
-        1000,
-    )
-    .await?;
+
+    let mut video_metadata_list = data::VideoMetadata::select()
+        .with_client(client.clone())
+        .add_where_eq(name_of!(backed_up in data::VideoMetadata), Some(&false))
+        .map_err(|e| anyhow!("{}", e))?
+        .set_limit(1000)
+        .build_query()
+        .map_err(|e| anyhow!("{}", e))?
+        .run()
+        .await
+        .map_err(|e| anyhow!("{}", e))?
+        .map_err_with_data("Error getting not downloaded videos from db").map_err(|e|anyhow!("{}",e))?;
     info!("getting not downloaded videos from db (videos)");
     let amount = video_metadata_list.len();
     info!("got about {} videos", amount);
@@ -131,17 +156,19 @@ async fn get_not_downloaded_videos_from_db(
                 i + 1,
                 amount
             );
-            let v = data::Videos::load_from_pk(client, metadata.video_id).await?;
+            let video_id = metadata.video_id.clone();
+            let v = data::Videos::get_by_pk(client.clone(), &video_id.clone()).await;
 
-            if let Some(video) = v {
+            if let Ok(video) = v {
                 info!(
                     "getting not downloaded videos from db (streamer): {}/{}",
                     i + 1,
                     amount
                 );
                 let user_login = video.user_login.clone().unwrap().to_lowercase();
-                let streamer = data::Streamers::load_from_pk(client, user_login.clone()).await?;
-                if streamer.is_none() {
+                let streamer =
+                    data::Streamers::get_by_pk(client.clone(), &user_login.clone()).await;
+                if streamer.is_ok() {
                     // .expect(format!("Streamer with login not found: {}", user_login).as_str());
                     warn!("Streamer with login not found: {}", user_login);
                     return Ok(None);
@@ -216,13 +243,14 @@ async fn backup_not_downloaded_videos<'a>(
                     .as_str(),
             ),
         )
-        .await?;
+        .await
+        .map_err(|e| anyhow!("{}", e))?;
         info!("Uploading video to youtube");
         let res = upload_video_to_youtube(&video_parts, &mut video, &youtube_client, config).await;
         if let Err(e) = res {
             info!("Error uploading video: {}", e);
             video.metadata.error = Some(e.to_string());
-            video.metadata.save_to_bigquery().await?;
+            video.metadata.save().await.map_err(|e| anyhow!("{}", e))?;
         } else {
             info!(
                 "Video uploaded successfully: {}: {}",
@@ -230,7 +258,7 @@ async fn backup_not_downloaded_videos<'a>(
                 video.video.title.as_ref().unwrap()
             );
             video.metadata.backed_up = Some(true);
-            video.metadata.save_to_bigquery().await?;
+            video.metadata.save().await.map_err(|e| anyhow!("{}", e))?;
         }
         info!("Cleaning up video parts");
         cleanup_video_parts(video_parts).await?;
@@ -251,7 +279,7 @@ async fn cleanup_video_parts(video_parts: Vec<PathBuf>) -> Result<()> {
 
 async fn upload_video_to_youtube<'a>(
     video_path: &Vec<PathBuf>,
-    mut video: &mut VideoData<'a>,
+    mut video: &mut VideoData,
     youtube_client: &YoutubeClient,
     config: &Config,
 ) -> Result<()> {
@@ -288,15 +316,18 @@ async fn upload_video_to_youtube<'a>(
                 config.youtube_tags.clone(),
                 privacy,
             )
-            .await?;
+            .await
+            .map_err(|e| anyhow!("{}", e))?;
 
         let playlist_title = get_playlist_title_from_twitch_video(&video)?;
         let playlist = youtube_client
             .find_playlist_or_create_by_name(&playlist_title)
-            .await?;
+            .await
+            .map_err(|e| anyhow!("{}", e))?;
         youtube_client
             .add_video_to_playlist(&youtube_video, &playlist)
-            .await?;
+            .await
+            .map_err(|e| anyhow!("{}", e))?;
         video.metadata.youtube_playlist_url = playlist.id;
     }
 
@@ -609,7 +640,7 @@ pub fn get_video_title_from_twitch_video(
         ),
     };
 
-    let title = video.video.title.as_ref().ok_or("Video has no title")?;
+    let title = video.video.title.as_ref().ok_or("Video has no title").map_err(|e|anyhow!("{}",e))?;
     let title = cap_long_title(title)?;
 
     let res = format!("{}{}", prefix, title);
@@ -621,7 +652,7 @@ const PREFIX_LENGTH: usize = 24;
 
 pub fn get_playlist_title_from_twitch_video(video: &data::VideoData) -> Result<String> {
     trace!("get playlist title from twitch video");
-    let title = video.video.title.as_ref().ok_or("Video has no title")?;
+    let title = video.video.title.as_ref().ok_or("Video has no title").map_err(|e|anyhow!("{}",e))?;
     let date_str = get_date_string_from_video(video)?;
     let title = format!("{} {}", date_str, title,);
     let title = cap_long_title(title)?;
@@ -658,7 +689,7 @@ fn get_date_string_from_video(video: &VideoData) -> Result<String> {
     let created_at = video
         .video
         .created_at
-        .ok_or(format!("Video has no created_at time: {:?}", video.video).as_str())?;
+        .ok_or(format!("Video has no created_at time: {:?}", video.video).as_str()).map_err(|e|anyhow!("{}",e))?;
     // let created_at = created_at.format("%Y-%m-%d");
     let res = format!(
         "[{:0>4}-{:0>2}-{:0>2}]",
