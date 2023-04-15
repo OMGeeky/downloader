@@ -616,6 +616,8 @@ pub async fn extract_track_info_from_playlist_file(
 /// - $$video_url$$
 /// - $$video_id$$
 /// - $$video_duration$$
+/// - $$video_created_at$$
+/// - $$video_description$$
 /// - $$video_part$$
 /// - $$video_total_parts$$
 /// - $$video_streamer_name$$
@@ -630,34 +632,50 @@ pub fn get_video_description_from_twitch_video(
     let description_template = &config.youtube_description_template;
     let description = description_template.clone();
 
-    let description = description.replace("$$video_title$$", &video.video.title.as_ref().unwrap());
-
-    let url = &video
+    let video_url = &video
         .video
         .url
         .clone()
         .unwrap_or("<NO URL FOUND>".to_string());
-    let description = description.replace("$$video_url$$", url);
-
-    let description = description.replace("$$video_id$$", &video.video.video_id.to_string());
-
     let duration = &video.video.duration.unwrap_or(0);
     let duration = chrono::Duration::seconds(duration.clone());
-    let duration = duration.to_string();
-    let description = description.replace("$$video_duration$$", &duration);
+    let video_duration = duration.to_string();
+    let video_streamer_login = video
+        .streamer
+        .display_name
+        .clone()
+        .unwrap_or("<NO NAME FOUND>".to_string());
+    let video_id = video.video.video_id.to_string();
+    let video_title = video.video.title.as_ref().unwrap();
+    let video_part = part.to_string();
+    let video_total_parts = total_parts.to_string();
+    let video_streamer_name = video
+        .streamer
+        .display_name
+        .clone()
+        .unwrap_or("<NO NAME FOUND>".to_string());
+    let video_created_at = match video.video.created_at {
+        Some(date) => date.to_rfc3339_opts(chrono::SecondsFormat::Secs, false),
+        None => "<NO DATE FOUND>".to_string(),
+    };
+    let video_description = video
+        .video
+        .description
+        .clone()
+        .unwrap_or("<NO DESCRIPTION FOUND>".to_string());
 
-    let description = description.replace("$$video_part$$", &part.to_string());
 
-    let description = description.replace("$$video_total_parts$$", &total_parts.to_string());
-
-    let description = description.replace(
-        "$$video_streamer_name$$",
-        &video
-            .streamer
-            .display_name
-            .clone()
-            .unwrap_or("<NO NAME FOUND>".to_string()),
-    );
+    let description = description
+        .replace("$$video_title$$", &video_title)
+        .replace("$$video_url$$", &video_url)
+        .replace("$$video_id$$", &video_id)
+        .replace("$$video_duration$$", &video_duration)
+        .replace("$$video_created_at$$", &video_created_at)
+        .replace("$$video_description$$", &video_description)
+        .replace("$$video_part$$", &video_part)
+        .replace("$$video_total_parts$$", &video_total_parts)
+        .replace("$$video_streamer_name$$", &video_streamer_name)
+        .replace("$$video_streamer_login$$", &video_streamer_login);
 
     let description =
         description.replace("$$video_streamer_login$$", &video.streamer.login.clone());
