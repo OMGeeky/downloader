@@ -129,7 +129,7 @@ pub async fn start_backup() -> Result<()> {
 
 async fn get_not_downloaded_videos_from_db(
     client: &BigqueryClient,
-) -> Result<impl Iterator<Item = impl Future<Output = Result<Option<data::VideoData>>>+ '_>+ '_> {
+) -> Result<impl Iterator<Item = impl Future<Output = Result<Option<data::VideoData>>> + '_> + '_> {
     //TODO: make sure that this is sorted by date (oldest first)
     info!("getting not downloaded videos from db (metadata)");
 
@@ -137,13 +137,20 @@ async fn get_not_downloaded_videos_from_db(
         .with_client(client.clone())
         .add_where_eq(name_of!(backed_up in data::VideoMetadata), Some(&false))
         .map_err(|e| anyhow!("{}", e))?
+        .add_order_by(
+            name_of!(video_id in data::VideoMetadata),
+            OrderDirection::Ascending,
+        )
+        //TODO: check if ordering by video_id is correct (should be oldest first)
+        //TODO: sort this by streamer (join is needed)
         .set_limit(1000)
         .build_query()
         .map_err(|e| anyhow!("{}", e))?
         .run()
         .await
         .map_err(|e| anyhow!("{}", e))?
-        .map_err_with_data("Error getting not downloaded videos from db").map_err(|e|anyhow!("{}",e))?;
+        .map_err_with_data("Error getting not downloaded videos from db")
+        .map_err(|e| anyhow!("{}", e))?;
     info!("getting not downloaded videos from db (videos)");
     let amount = video_metadata_list.len();
     info!("got about {} videos", amount);
@@ -195,79 +202,107 @@ async fn backup_not_downloaded_videos<'a>(
     let path = Path::new(&config.download_folder_path);
     info!("Getting not downloaded videos from db");
     let videos = get_not_downloaded_videos_from_db(client).await?;
-    for mut video in videos {
+    for mut video in videos.into_iter() {
         let video = video.await?;
+
         if video.is_none() {
             continue;
         }
         let mut video = video.unwrap();
-        info!(
-            "Backing up video {}: {}\nLength: {}",
-            video.video.video_id,
-            video.video.title.as_ref().unwrap(),
-            video.video.duration.as_ref().unwrap()
-        );
-        let video_file_path = twitch_client
-            .download_video(video.video.video_id.to_string(), "", path)
-            .await;
-        if video_file_path.is_err() {
-            warn!(
-                "Failed to download video: {}: {:?}",
-                video.video.video_id, video.video.title
-            );
+
+        let result = backup_video(twitch_client, config, path, &mut video).await;
+        if result.is_err() {
+            let e = result.unwrap_err();
+            let error_message = format!("Error while backing up video: {}", e.to_string());
+            warn!("{}", error_message);
+            video.metadata.error = Some(error_message);
+            video.metadata.backed_up = Some(false);
+            video.metadata.save().await.map_err(|e| anyhow!("{}", e))?;
             continue;
         }
-        let video_file_path = video_file_path.unwrap();
-        info!("Splitting video into parts");
-        let mut video_parts = split_video_into_parts(
-            video_file_path.to_path_buf(),
-            Duration::minutes(config.youtube_video_length_minutes_soft_cap),
-            Duration::minutes(config.youtube_video_length_minutes_hard_cap),
-        )
-        .await?;
-        video_parts.sort();
-
-        let youtube_client = YoutubeClient::new(
-            Some(config.youtube_client_secret_path.as_str()),
-            vec![
-                scopes::YOUTUBE_UPLOAD,
-                scopes::YOUTUBE_READONLY,
-                scopes::YOUTUBE,
-            ],
-            Some(
-                video
-                    .streamer
-                    .youtube_user
-                    .clone()
-                    .unwrap_or("NopixelVODS".to_string())
-                    .as_str(),
-            ),
-        )
-        .await
-        .map_err(|e| anyhow!("{}", e))?;
-        info!("Uploading video to youtube");
-        let res = upload_video_to_youtube(&video_parts, &mut video, &youtube_client, config).await;
-        if let Err(e) = res {
-            info!("Error uploading video: {}", e);
-            video.metadata.error = Some(e.to_string());
-            video.metadata.save().await.map_err(|e| anyhow!("{}", e))?;
-        } else {
-            info!(
-                "Video uploaded successfully: {}: {}",
-                video.video.video_id,
-                video.video.title.as_ref().unwrap()
-            );
-            video.metadata.backed_up = Some(true);
-            video.metadata.save().await.map_err(|e| anyhow!("{}", e))?;
-        }
-        info!("Cleaning up video parts");
-        cleanup_video_parts(video_parts).await?;
         info!("Video backed up");
     }
 
     info!("Backing up not downloaded videos finished");
     Ok(())
 }
+
+async fn backup_video<'a>(
+    twitch_client: &TwitchClient<'a>,
+    config: &Config,
+    path: &Path,
+    video: &mut VideoData,
+) -> Result<()> {
+    info!(
+        "Backing up video {}: {}\nLength: {}",
+        video.video.video_id,
+        video.video.title.as_ref().unwrap(),
+        video.video.duration.as_ref().unwrap()
+    );
+    let video_file_path = twitch_client
+        .download_video(video.video.video_id.to_string(), "", path)
+        .await;
+    if video_file_path.is_err() {
+        warn!(
+            "Failed to download video: {}: {:?}",
+            video.video.video_id, video.video.title
+        );
+        return Err(anyhow!(
+            "Failed to download video: {}: {:?}",
+            video.video.video_id,
+            video.video.title
+        ));
+    }
+    let video_file_path = video_file_path.unwrap();
+    info!("Splitting video into parts");
+    //TODO: optimization: if the video is shorter than the soft cap, then skip this step
+    let mut video_parts = split_video_into_parts(
+        video_file_path.to_path_buf(),
+        Duration::minutes(config.youtube_video_length_minutes_soft_cap),
+        Duration::minutes(config.youtube_video_length_minutes_hard_cap),
+    )
+    .await?;
+    video_parts.sort();
+
+    let youtube_client = YoutubeClient::new(
+        Some(config.youtube_client_secret_path.as_str()),
+        vec![
+            scopes::YOUTUBE_UPLOAD,
+            scopes::YOUTUBE_READONLY,
+            scopes::YOUTUBE,
+        ],
+        Some(
+            video
+                .streamer
+                .youtube_user
+                .clone()
+                .unwrap_or("NopixelVODS".to_string())
+                .as_str(),
+        ),
+    )
+    .await
+    .map_err(|e| anyhow!("{}", e))?;
+    info!("Uploading video to youtube");
+    let res = upload_video_to_youtube(&video_parts, video, &youtube_client, config).await;
+    if let Err(e) = res {
+        info!("Error uploading video: {}", e);
+        video.metadata.error = Some(e.to_string());
+        video.metadata.save().await.map_err(|e| anyhow!("{}", e))?;
+    } else {
+        info!(
+            "Video uploaded successfully: {}: {}",
+            video.video.video_id,
+            video.video.title.as_ref().unwrap()
+        );
+        video.metadata.backed_up = Some(true);
+        video.metadata.save().await.map_err(|e| anyhow!("{}", e))?;
+    }
+    info!("Cleaning up video parts");
+    cleanup_video_parts(video_parts).await?;
+    info!("Video backed up");
+    Ok(())
+}
+
 async fn cleanup_video_parts(video_parts: Vec<PathBuf>) -> Result<()> {
     trace!("cleanup video parts");
     for part in video_parts {
@@ -640,7 +675,12 @@ pub fn get_video_title_from_twitch_video(
         ),
     };
 
-    let title = video.video.title.as_ref().ok_or("Video has no title").map_err(|e|anyhow!("{}",e))?;
+    let title = video
+        .video
+        .title
+        .as_ref()
+        .ok_or("Video has no title")
+        .map_err(|e| anyhow!("{}", e))?;
     let title = cap_long_title(title)?;
 
     let res = format!("{}{}", prefix, title);
@@ -652,7 +692,12 @@ const PREFIX_LENGTH: usize = 24;
 
 pub fn get_playlist_title_from_twitch_video(video: &data::VideoData) -> Result<String> {
     trace!("get playlist title from twitch video");
-    let title = video.video.title.as_ref().ok_or("Video has no title").map_err(|e|anyhow!("{}",e))?;
+    let title = video
+        .video
+        .title
+        .as_ref()
+        .ok_or("Video has no title")
+        .map_err(|e| anyhow!("{}", e))?;
     let date_str = get_date_string_from_video(video)?;
     let title = format!("{} {}", date_str, title,);
     let title = cap_long_title(title)?;
@@ -689,7 +734,8 @@ fn get_date_string_from_video(video: &VideoData) -> Result<String> {
     let created_at = video
         .video
         .created_at
-        .ok_or(format!("Video has no created_at time: {:?}", video.video).as_str()).map_err(|e|anyhow!("{}",e))?;
+        .ok_or(format!("Video has no created_at time: {:?}", video.video).as_str())
+        .map_err(|e| anyhow!("{}", e))?;
     // let created_at = created_at.format("%Y-%m-%d");
     let res = format!(
         "[{:0>4}-{:0>2}-{:0>2}]",
