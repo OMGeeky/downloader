@@ -384,8 +384,8 @@ dependencies = [
 
 [[package]]
 name = "downloader_config"
-version = "0.4.0"
-source = "git+https://github.com/OMGeeky/downloader_config#c3cff264c2bcb3815a8d5652864399a5d436eaad"
+version = "0.4.2"
+source = "git+https://github.com/OMGeeky/downloader_config#73a397ecff948cb8264e9ebf417f585f98526668"
 dependencies = [
  "log",
  "serde",

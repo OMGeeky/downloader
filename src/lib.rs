@@ -174,8 +174,8 @@ async fn get_not_downloaded_videos_from_db(
                 );
                 let user_login = video.user_login.clone().unwrap().to_lowercase();
                 let streamer =
-                    data::Streamers::get_by_pk(client.clone(), &user_login.clone()).await;
-                if streamer.is_ok() {
+                    data::Streamers::get_by_pk(client.clone(), &user_login).await;
+                if streamer.is_err() {
                     // .expect(format!("Streamer with login not found: {}", user_login).as_str());
                     warn!("Streamer with login not found: {}", user_login);
                     return Ok(None);
