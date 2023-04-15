@@ -11,7 +11,6 @@ google_youtube = { version="0.1.1",git = "https://github.com/OMGeeky/google_yout
 twitch_data = { version="0.1.7", git = "https://github.com/OMGeeky/twitch_data" }
 downloader_config = { version="0.3.0", git = "https://github.com/OMGeeky/downloader_config" }
 tokio = "1.23"
-google-bigquery2 = "4.0.1"
 chrono = "0.4.23"
 nameof = "1.2.2"
 log = "0.4.17"
@@ -21,3 +20,4 @@ path-clean = "1.0.1"
 
 log-panics = { version = "2", features = ["with-backtrace"]}
 env_logger = "0.10.0"
+anyhow = "1.0.70"
