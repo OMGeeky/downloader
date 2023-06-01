@@ -5,3 +5,4 @@
 /build
 /tests/test_data/tmp/
 /.idea/
+/Cargo.lock
