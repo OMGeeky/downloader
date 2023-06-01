@@ -1,6 +1,6 @@
 [package]
 name = "downloader"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -8,12 +8,11 @@ edition = "2021"
 [dependencies]
 google_bigquery_v2 = { version = "0.2", git = "https://github.com/OMGeeky/google_bigquery_v2" }
 google_youtube = { version = "0.1", git = "https://github.com/OMGeeky/google_youtube" }
-twitch_data = { version = "0.1", git = "https://github.com/OMGeeky/twitch_data" }
-downloader_config = { version = "0.4.2", git = "https://github.com/OMGeeky/downloader_config" }
+twitch_data = { version = "0.2", git = "https://github.com/OMGeeky/twitch_data" }
+downloader_config = { version = "0.4", git = "https://github.com/OMGeeky/downloader_config" }
 tokio = "1.23"
 chrono = "0.4.23"
 nameof = "1.2.2"
-log = "0.4.17"
 simplelog = "0.12.1"
 log4rs = { version = "1.2.0", features = ["compound_policy", "default", "size_trigger", "all_components", "gzip"] }
 path-clean = "1.0.1"
@@ -21,3 +20,15 @@ path-clean = "1.0.1"
 log-panics = { version = "2", features = ["with-backtrace"] }
 env_logger = "0.10.0"
 anyhow = "1.0.70"
+
+log = { version = "0.4" }
+tracing = { version = "0.1", optional = true }
+
+[features]
+default = []
+tracing = ["dep:tracing",
+    "google_bigquery_v2/tracing",
+    "google_youtube/tracing",
+    "twitch_data/tracing",
+    "downloader_config/tracing",
+]

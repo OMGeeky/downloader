@@ -3,8 +3,7 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, NaiveDateTime, Utc};
 // use bigquery_googleapi::BigqueryClient;
 use google_bigquery_v2::prelude::*;
-use log::LevelFilter;
-use log::{debug, info};
+use downloader::prelude::*;
 
 use downloader;
 use downloader::data::{Streamers, VideoData, VideoMetadata, Videos};

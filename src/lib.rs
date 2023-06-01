@@ -12,7 +12,6 @@ use downloader_config;
 use downloader_config::Config;
 use google_bigquery_v2::prelude::*;
 use google_youtube::{scopes, PrivacyStatus, YoutubeClient};
-use log::{debug, error, info, trace, warn};
 use nameof::name_of;
 use path_clean::clean;
 use tokio::io::BufReader;

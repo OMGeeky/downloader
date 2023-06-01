@@ -8,7 +8,7 @@ use anyhow::{anyhow, Result};
 use google_bigquery_v2::prelude::*;
 use google_youtube::scopes;
 use google_youtube::YoutubeClient;
-use log::{debug, error, info, trace, warn};
+use downloader::prelude::*;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::rolling_file::policy::compound::roll;
 use log4rs::append::rolling_file::policy::compound::roll::fixed_window::FixedWindowRoller;
