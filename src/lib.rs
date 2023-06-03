@@ -121,7 +121,7 @@ pub async fn start_backup() -> Result<()> {
         trace!("Checking for new videos");
         check_for_new_videos(&client, &twitch_client).await?;
         trace!("backing up not downloaded videos");
-        backup_not_downloaded_videos(&client, &twitch_client, &config)
+        backup_not_downloaded_videos(&client, &twitch_client, &config, &youtube_clients)
             .await
             .map_err(|e| anyhow!("{}", e))?;
 
