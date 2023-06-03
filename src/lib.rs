@@ -1,15 +1,16 @@
 #![allow(unused, incomplete_features)]
 
+use std::collections::HashMap;
 use std::error::Error;
 use std::future::Future;
 use std::io::stdin;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use chrono::{Datelike, Duration};
 use downloader_config;
-use downloader_config::Config;
+use downloader_config::{load_config, Config};
 use google_bigquery_v2::prelude::*;
 use google_youtube::{scopes, PrivacyStatus, YoutubeClient};
 use nameof::name_of;
@@ -108,6 +109,11 @@ pub async fn start_backup() -> Result<()> {
     let twitch_client = twitch_data::get_client()
         .await
         .map_err(|e| anyhow!("{}", e))?;
+    info!("getting youtube clients");
+    let youtube_clients: HashMap<String, YoutubeClient> = get_youtube_clients(&client)
+        .await
+        .context("could not create youtube clients")?;
+    info!("got youtube clients");
     info!("Starting main loop");
     'main_loop: loop {
         trace!("Beginning of main loop");
@@ -124,6 +130,38 @@ pub async fn start_backup() -> Result<()> {
         tokio::time::sleep(std::time::Duration::from_secs(60 * 60)).await;
         //repeat
     }
+}
+
+async fn get_youtube_clients(
+    db_client: &BigqueryClient,
+) -> anyhow::Result<HashMap<String, YoutubeClient>> {
+    let mut result = HashMap::new();
+    let config = load_config();
+    let streamers = get_watched_streamers(db_client).await?;
+
+    for streamer in streamers {
+        trace!("Creating youtube client");
+
+        let user = streamer
+            .youtube_user
+            .as_ref()
+            .unwrap_or(&"NopixelVODs".to_string())
+            .to_string();
+        info!("creating youtube client for user: {}", user);
+        let youtube_client = YoutubeClient::new(
+            Some(config.youtube_client_secret_path.as_str()),
+            vec![
+                scopes::YOUTUBE_UPLOAD,
+                scopes::YOUTUBE_READONLY,
+                scopes::YOUTUBE,
+            ],
+            Some(&user),
+        )
+        .await
+        .map_err(|e| anyhow!("error creating the youtube client: {}", e))?;
+        result.insert(user, youtube_client);
+    }
+    Ok(result)
 }
 
 async fn get_not_downloaded_videos_from_db(
@@ -196,6 +234,7 @@ async fn backup_not_downloaded_videos<'a>(
     client: &BigqueryClient,
     twitch_client: &TwitchClient<'a>,
     config: &Config,
+    youtube_clients: &HashMap<String, YoutubeClient>,
 ) -> Result<()> {
     trace!("backup not downloaded videos");
     let path = Path::new(&config.download_folder_path);
@@ -209,9 +248,21 @@ async fn backup_not_downloaded_videos<'a>(
         }
         let mut video = video.unwrap();
 
-        let result = backup_video(twitch_client, config, path, &mut video).await;
-        if result.is_err() {
-            let e = result.unwrap_err();
+        trace!("Creating youtube client");
+        let youtube_client = youtube_clients.get(
+            video
+                .streamer
+                .youtube_user
+                .as_ref()
+                .unwrap_or(&"NopixelVODs".to_string()),
+        );
+        if youtube_client.is_none() {
+            warn!("could not find youtube client for video: {:?}", video);
+            continue;
+        }
+        let youtube_client = youtube_client.expect("we just checked it");
+        let result = backup_video(twitch_client, config, path, &mut video, &youtube_client).await;
+        if let Err(e) = result {
             let error_message = format!("Error while backing up video: {}", e.to_string());
             warn!("{}", error_message);
             video.metadata.error = Some(error_message);
@@ -231,6 +282,7 @@ async fn backup_video<'a>(
     config: &Config,
     path: &Path,
     video: &mut VideoData,
+    youtube_client: &YoutubeClient,
 ) -> Result<()> {
     info!(
         "Backing up video {}: {}\nLength: {}",
@@ -260,27 +312,9 @@ async fn backup_video<'a>(
         Duration::minutes(config.youtube_video_length_minutes_soft_cap),
         Duration::minutes(config.youtube_video_length_minutes_hard_cap),
     )
-    .await?;
-    video_parts.sort();
-    trace!("Creating youtube client");
-    let youtube_client = YoutubeClient::new(
-        Some(config.youtube_client_secret_path.as_str()),
-        vec![
-            scopes::YOUTUBE_UPLOAD,
-            scopes::YOUTUBE_READONLY,
-            scopes::YOUTUBE,
-        ],
-        Some(
-            video
-                .streamer
-                .youtube_user
-                .clone()
-                .unwrap_or("NopixelVODS".to_string())
-                .as_str(),
-        ),
-    )
     .await
-    .map_err(|e| anyhow!("{}", e))?;
+    .map_err(|e| anyhow!("error while splitting video into parts: {}", e))?;
+    video_parts.sort();
     info!("Uploading video to youtube");
     debug!("Video parts: {:?}", video_parts);
     debug!("Video: {:?}", video);
@@ -289,7 +323,11 @@ async fn backup_video<'a>(
     if let Err(e) = res {
         info!("Error uploading video: {}", e);
         video.metadata.error = Some(e.to_string());
-        video.metadata.save().await.map_err(|e| anyhow!("{}", e))?;
+        video
+            .metadata
+            .save()
+            .await
+            .map_err(|e| anyhow!("could not save metadata error code to db: {}", e))?;
     } else {
         info!(
             "Video uploaded successfully: {}: {}",
@@ -297,7 +335,11 @@ async fn backup_video<'a>(
             video.video.title.as_ref().unwrap()
         );
         video.metadata.backed_up = Some(true);
-        video.metadata.save().await.map_err(|e| anyhow!("{}", e))?;
+        video
+            .metadata
+            .save()
+            .await
+            .map_err(|e| anyhow!("error saving backed up flag to metadata db: {}", e))?;
     }
     info!("Cleaning up video parts");
     cleanup_video_parts(video_parts).await?;
