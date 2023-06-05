@@ -1,5 +1,1 @@
-# ingore everything
-*
-# include the build
-!build/downloader
-!logger.yaml
+target

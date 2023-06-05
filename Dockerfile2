@@ -1,0 +1,35 @@
+FROM rust:1.70 as build
+RUN rustup update
+## add ffmpeg to the container (needed for video splitting)
+RUN apt-get update && apt-get install -y ffmpeg
+# set target (not sure if this is even needed...
+#RUN export RUSTTARGET="x86_64-unknown-linux-musl"
+
+# region this part caches the dependencies so that they are not recompiled every time
+# ===================================================================================
+
+# create a dummy project to cache the dependencies
+RUN USER=root cargo new --bin downloader
+WORKDIR /downloader
+
+COPY ./Cargo.toml ./Cargo.toml
+COPY ./Cargo.lock ./Cargo.lock
+#RUN cargo build --release -j 1
+RUN cargo build --release
+# remove the dummy sources
+RUN rm src/*.rs
+# remove only the binary so only that gets recompiled
+RUN rm ./target/release/deps/downloader*
+
+# ===================================================================================
+# endregion Done caching dependencies
+
+# copy the actual sources to build
+COPY ./src ./src
+# build the bin only (--locked makes sure to not rebuild dependencies since
+# they were already cached before)
+RUN cargo install --path . --locked
+# copy the logger config
+COPY ./logger.yaml ./logger.yaml
+# set start command to installed app
+CMD ["downloader"]
