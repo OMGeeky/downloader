@@ -15,21 +15,12 @@ pub struct Streamers {
     pub login: String,
     #[client]
     pub client: BigqueryClient,
-    pub display_name: Option::<String>,
-    pub watched: Option::<bool>,
-    pub youtube_user: Option::<String>,
-    pub public_videos_default: Option::<bool>,
+    pub display_name: Option<String>,
+    pub watched: Option<bool>,
+    pub youtube_user: Option<String>,
+    pub public_videos_default: Option<bool>,
+    pub youtube_google_ident: Option<String>,
 }
-
-/*impl<'a> Streamers<'a> {
-    pub fn get_watched(&self) -> String {
-        self.login.clone()
-    }
-
-    fn get_pk_value(&self) -> String {
-        self.login.clone()
-    }
-}*/
 
 #[derive(BigDataTableDerive, Debug, Default, Clone)]
 #[db_name("videos")]
@@ -40,18 +31,18 @@ pub struct Videos {
     #[client]
     pub client: BigqueryClient,
 
-    pub title: Option::<String>,
-    pub description: Option::<String>,
-    pub bool_test: Option::<bool>,
-    pub user_login: Option::<String>,
-    pub created_at: Option::<DateTime<Utc>>,
-    pub url: Option::<String>,
-    pub viewable: Option::<String>,
-    pub language: Option::<String>,
-    pub view_count: Option::<i64>,
-    pub video_type: Option::<String>,
-    pub duration: Option::<i64>,
-    pub thumbnail_url: Option::<String>,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub bool_test: Option<bool>,
+    pub user_login: Option<String>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub url: Option<String>,
+    pub viewable: Option<String>,
+    pub language: Option<String>,
+    pub view_count: Option<i64>,
+    pub video_type: Option<String>,
+    pub duration: Option<i64>,
+    pub thumbnail_url: Option<String>,
 }
 
 #[derive(BigDataTableDerive, Debug, Default, Clone)]
@@ -63,13 +54,13 @@ pub struct VideoMetadata {
     #[client]
     pub client: BigqueryClient,
 
-    pub backed_up: Option::<bool>,
-    pub total_clips_amount: Option::<i64>,
-    pub parts_backed_up_id: Option::<i64>,
-    pub parts_size: Option::<i64>,
-    pub error: Option::<String>,
-    pub download_playlist_url: Option::<String>,
-    pub youtube_playlist_url: Option::<String>,
+    pub backed_up: Option<bool>,
+    pub total_clips_amount: Option<i64>,
+    pub parts_backed_up_id: Option<i64>,
+    pub parts_size: Option<i64>,
+    pub error: Option<String>,
+    pub download_playlist_url: Option<String>,
+    pub youtube_playlist_url: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -78,6 +69,7 @@ pub struct VideoData {
     pub metadata: VideoMetadata,
     pub streamer: Streamers,
 }
+
 impl VideoData {
     pub fn from_twitch_video(video: &twitch_data::Video, client: BigqueryClient) -> Result<Self> {
         Ok(Self {

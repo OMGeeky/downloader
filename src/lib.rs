@@ -135,8 +135,8 @@ pub async fn start_backup() -> Result<()> {
             .map_err(|e| anyhow!("{}", e))?;
 
         //sleep for an hour
-        info!("Sleeping for an hour");
-        tokio::time::sleep(std::time::Duration::from_secs(60 * 60)).await;
+        info!("Sleeping for a while");
+        tokio::time::sleep(std::time::Duration::from_secs(3 * 60 * 60)).await;
         //repeat
     }
 }
@@ -221,8 +221,7 @@ async fn get_not_downloaded_videos_from_db(
                     amount
                 );
                 let user_login = video.user_login.clone().unwrap().to_lowercase();
-                let streamer =
-                    data::Streamers::get_by_pk(client.clone(), &user_login).await;
+                let streamer = data::Streamers::get_by_pk(client.clone(), &user_login).await;
                 if streamer.is_err() {
                     // .expect(format!("Streamer with login not found: {}", user_login).as_str());
                     warn!("Streamer with login not found: {}", user_login);
