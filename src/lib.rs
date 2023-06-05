@@ -41,6 +41,7 @@ async fn check_for_new_videos<'a>(
         for video in videos {
             let video_id: &i64 = &video.id.parse()?;
             let loaded_video = data::Videos::get_by_pk(db_client.clone(), video_id).await;
+            debug!("get_by_pk result: {:?}", loaded_video);
             if loaded_video.is_err() {
                 let mut video = data::VideoData::from_twitch_video(&video, db_client.clone())
                     .map_err(|e| anyhow::anyhow!("{}", e))?;
@@ -53,8 +54,16 @@ async fn check_for_new_videos<'a>(
                         .as_ref()
                         .unwrap_or(&"TITLE NOT FOUND".to_string())
                 );
-                video.video.save().await.map_err(|e| anyhow!("{}", e))?;
-                video.metadata.save().await;
+                video
+                    .video
+                    .upsert()
+                    .await
+                    .map_err(|e| anyhow!("error saving video data: {}", e))?;
+                video
+                    .metadata
+                    .upsert()
+                    .await
+                    .map_err(|e| anyhow!("error saving video metadata: {}", e))?;
             }
         }
     }
@@ -173,7 +182,9 @@ async fn get_not_downloaded_videos_from_db(
     let mut video_metadata_list = data::VideoMetadata::select()
         .with_client(client.clone())
         .add_where_eq(name_of!(backed_up in data::VideoMetadata), Some(&false))
-        .map_err(|e| anyhow!("{}", e))?
+        .map_err(|e| anyhow!("could not add backed_up where: {}", e))?
+        .add_where_eq::<String>(name_of!(error in data::VideoMetadata), None)
+        .map_err(|e| anyhow!("could not add error where: {}", e))?
         .add_order_by(
             name_of!(video_id in data::VideoMetadata),
             OrderDirection::Ascending,
