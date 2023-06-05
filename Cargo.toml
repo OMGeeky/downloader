@@ -1,6 +1,6 @@
 [package]
 name = "downloader"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -23,6 +23,12 @@ anyhow = "1.0.70"
 
 log = { version = "0.4" }
 tracing = { version = "0.1", optional = true }
+
+[patch.crates-io]
+# patch the yup-oauth2 version with a custom for to support forcing the user to choose an account.
+# this can be removed as soon as PR (#205)[https://github.com/dermesser/yup-oauth2/pull/205] is resolved and
+# the google-youtube3 crate uses the google-apis-common crate that implements this
+yup-oauth2 = { version = "8.1.1", git = "https://github.com/OMGeeky/yup-oauth2", branch = "8.1.1" }
 
 [features]
 default = []
