@@ -841,33 +841,26 @@ fn duration_to_string(duration: &Duration) -> String {
 //region tests
 #[cfg(test)]
 mod tests {
+
+    use data_test::data_test;
     use std::fs::File;
 
     use tokio::io::AsyncReadExt;
 
     use super::*;
 
-    #[test]
-    fn test_duration_to_string() {
-        let duration = Duration::seconds(0);
-        let res = duration_to_string(&duration);
-        assert_eq!(res, "00:00:00");
-
-        let duration = Duration::seconds(1);
-        let res = duration_to_string(&duration);
-        assert_eq!(res, "00:00:01");
-
-        let duration = Duration::seconds(60);
-        let res = duration_to_string(&duration);
-        assert_eq!(res, "00:01:00");
-
-        let duration = Duration::seconds(3600);
-        let res = duration_to_string(&duration);
-        assert_eq!(res, "01:00:00");
-
-        let duration = Duration::seconds(3600 + 60 + 1);
-        let res = duration_to_string(&duration);
-        assert_eq!(res, "01:01:01");
+    data_test! {
+        fn test_duration_to_string_2(duration_in_seconds, string) => {
+            let duration = Duration::seconds(duration_in_seconds);
+            let res = duration_to_string(&duration);
+            debug!("duration: {}s => {}", duration_in_seconds, res);
+            assert_eq!(res, string);
+        }
+        - zero (0, "00:00:00")
+        - sec (1, "00:00:01")
+        - min (60, "00:01:00")
+        - hour (3600, "01:00:00")
+        - one (3600 + 60 + 1, "01:01:01")
     }
 
     #[tokio::test]
