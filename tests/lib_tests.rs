@@ -9,7 +9,7 @@ use downloader;
 use downloader::data::{Streamers, VideoData, VideoMetadata, Videos};
 use downloader::{
     get_playlist_title_from_twitch_video, get_video_prefix_from_twitch_video,
-    get_video_title_from_twitch_video,
+    get_video_title_from_twitch_video, MAX_VIDEO_TITLE_LENGTH, PART_PREFIX_LENGTH,
 };
 
 fn init_console_logging(log_level: LevelFilter) {
@@ -75,6 +75,16 @@ const LONG_TITLE: &'static str =
     "long title with over a hundred characters that is definitely going to \
     be cut of because it does not fit into the maximum length that youtube requires";
 
+const LONG_TITLE_ONLY_EMOJI: &'static str = "🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠\
+                                             🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠\
+                                             🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠\
+                                             🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠\
+                                             🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠\
+                                             🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠\
+                                             🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠\
+                                             🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠\
+                                             🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠";
+
 #[tokio::test]
 async fn get_video_title() {
     init_console_logging(LevelFilter::Debug);
@@ -93,6 +103,31 @@ async fn get_video_long_title() {
     let title = get_video_title_from_twitch_video(&video, 5, 20).unwrap();
     info!("part title: {}", title);
     assert_eq!(title, "[2021-01-01][Part 05/20] long title with over a hundred characters that is definitely going to be...");
+}
+#[tokio::test]
+async fn get_video_long_title_only_emoji() {
+    init_console_logging(LevelFilter::Debug);
+    let client = get_sample_client().await;
+    let mut video = get_sample_video(&client);
+    video.video.title = Some(LONG_TITLE_ONLY_EMOJI.to_string());
+    let title = get_video_title_from_twitch_video(&video, 1, 1).unwrap();
+    info!("part title: {}", title);
+    assert_eq!(
+        MAX_VIDEO_TITLE_LENGTH - PART_PREFIX_LENGTH,
+        title.chars().count()
+    ); //this is 88 chars long to leave space for the part prefix part, with that it should be exactly 100 chars
+    assert_eq!(
+        "[2021-01-01] 🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠...",
+        title,
+    );
+    video.video.title = Some(LONG_TITLE_ONLY_EMOJI.to_string());
+    let title = get_video_title_from_twitch_video(&video, 5, 20).unwrap();
+    info!("part title: {}", title);
+    assert_eq!(MAX_VIDEO_TITLE_LENGTH, title.chars().count());
+    assert_eq!(
+        "[2021-01-01][Part 05/20] 🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠🔴🟠...",
+        title,
+    );
 }
 
 #[tokio::test]

@@ -760,13 +760,15 @@ pub fn get_video_title_from_twitch_video(
 }
 
 /// The maximum length a youtube video can have
-const MAX_VIDEO_TITLE_LENGTH: usize = 100;
+pub const MAX_VIDEO_TITLE_LENGTH: usize = 100;
 /// the length my prefix might be (not necessarily all are used)
-const PREFIX_LENGTH: usize = 24;
+pub static PREFIX_LENGTH: usize = DATE_PREFIX_LENGTH + PART_PREFIX_LENGTH;
+pub const DATE_PREFIX_LENGTH: usize = 12;
+pub const PART_PREFIX_LENGTH: usize = 12;
 /// The length of the separator between the prefix & the title
-const SEPARATOR_LEN: usize = 1;
+pub const SEPARATOR_LEN: usize = 1;
 /// The length of the ... that gets put at the end if it is shortened
-const DOTDOTDOT_LEN: usize = 3;
+pub const DOTDOTDOT_LEN: usize = 3;
 
 pub fn get_playlist_title_from_twitch_video(video: &data::VideoData) -> Result<String> {
     trace!("get playlist title from twitch video");
