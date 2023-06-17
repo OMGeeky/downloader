@@ -23,7 +23,7 @@ async fn get_sample_client() -> BigqueryClient {
     BigqueryClient::new(
         "twitchbackup-v1",
         "backup_data",
-        Some("auth/bigquery_service_account.json"),
+        Some("tests/test_data/auth/bigquery_service_account.json"),
     )
     .await
     .unwrap()
