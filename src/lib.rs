@@ -758,8 +758,14 @@ pub fn get_video_title_from_twitch_video(
     Ok(res)
 }
 
+/// The maximum length a youtube video can have
 const MAX_VIDEO_TITLE_LENGTH: usize = 100;
+/// the length my prefix might be (not necessarily all are used)
 const PREFIX_LENGTH: usize = 24;
+/// The length of the separator between the prefix & the title
+const SEPARATOR_LEN: usize = 1;
+/// The length of the ... that gets put at the end if it is shortened
+const DOTDOTDOT_LEN: usize = 3;
 
 pub fn get_playlist_title_from_twitch_video(video: &data::VideoData) -> Result<String> {
     trace!("get playlist title from twitch video");
@@ -776,7 +782,6 @@ pub fn get_playlist_title_from_twitch_video(video: &data::VideoData) -> Result<S
 }
 pub fn cap_long_title<S: Into<String>>(title: S) -> Result<String> {
     let title = title.into();
-    const SEPARATOR_LEN: usize = 1;
     if title.len() > MAX_VIDEO_TITLE_LENGTH - PREFIX_LENGTH - SEPARATOR_LEN {
         let shortened = format!(
             "{}...",
