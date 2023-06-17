@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 // use bigquery_googleapi::BigqueryClient;
-use google_bigquery_v2::prelude::*;
 use downloader::prelude::*;
+use google_bigquery_v2::prelude::*;
 
 use downloader;
 use downloader::data::{Streamers, VideoData, VideoMetadata, Videos};
@@ -60,6 +60,7 @@ fn get_sample_video(client: &BigqueryClient) -> VideoData {
             youtube_user: Some("NoPixel VODs".to_string()),
             watched: Some(true),
             public_videos_default: Some(false),
+            youtube_google_ident: None,
         },
     }
 }
