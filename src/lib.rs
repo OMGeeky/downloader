@@ -6,6 +6,7 @@ use std::future::Future;
 use std::io::stdin;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::str::Chars;
 
 use anyhow::{anyhow, Context, Result};
 use chrono::{Datelike, Duration};
@@ -782,14 +783,16 @@ pub fn get_playlist_title_from_twitch_video(video: &data::VideoData) -> Result<S
 }
 pub fn cap_long_title<S: Into<String>>(title: S) -> Result<String> {
     let title = title.into();
-    if title.len() > MAX_VIDEO_TITLE_LENGTH - PREFIX_LENGTH - SEPARATOR_LEN {
-        let shortened = format!(
-            "{}...",
-            &title[0..MAX_VIDEO_TITLE_LENGTH - PREFIX_LENGTH - SEPARATOR_LEN - 3]
-        );
-        return Ok(shortened);
+    let mut chars = title.chars();
+    if chars.clone().count() > MAX_VIDEO_TITLE_LENGTH - PREFIX_LENGTH - SEPARATOR_LEN {
+        let shortened_chars =
+            chars.take(MAX_VIDEO_TITLE_LENGTH - PREFIX_LENGTH - SEPARATOR_LEN - DOTDOTDOT_LEN);
+        let shortened_chars: String = shortened_chars.collect();
+        let shortened = format!("{}...", shortened_chars);
+        Ok(shortened)
+    } else {
+        Ok(title)
     }
-    Ok(title.to_string())
 }
 
 pub fn get_video_prefix_from_twitch_video(
