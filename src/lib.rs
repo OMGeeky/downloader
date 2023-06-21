@@ -411,7 +411,7 @@ async fn upload_video_to_youtube<'a>(
 
         let playlist_title = get_playlist_title_from_twitch_video(&video)?;
         let playlist = youtube_client
-            .find_playlist_or_create_by_name(&playlist_title)
+            .find_playlist_or_create_by_name(&playlist_title, privacy)
             .await
             .map_err(|e| anyhow!("{}", e))?;
         youtube_client
