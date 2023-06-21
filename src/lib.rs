@@ -829,7 +829,17 @@ fn get_date_string_from_video(video: &VideoData) -> Result<String> {
 
 //endregion
 
-fn duration_to_string(duration: &Duration) -> String {
+/// Converts a duration to a string that is usable for example in a youtube title
+///
+/// Example:
+///
+/// ```
+/// use chrono::Duration;
+/// let duration: Duration = Duration::seconds(20);
+/// let s = downloader::duration_to_string(&duration);
+/// assert_eq!(s, "00:00:20");
+/// ```
+pub fn duration_to_string(duration: &Duration) -> String {
     trace!("duration to string for duration: {:?}", duration);
     let seconds = duration.num_seconds();
     let hours = seconds / 3600;
