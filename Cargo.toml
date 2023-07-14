@@ -1,12 +1,12 @@
 [package]
 name = "downloader"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-google_bigquery_v2 = { version = "0.2", git = "https://github.com/OMGeeky/google_bigquery_v2" }
+google_bigquery_v2 = { version = "0.3", git = "https://github.com/OMGeeky/google_bigquery_v2" }
 google_youtube = { version = "0.2", git = "https://github.com/OMGeeky/google_youtube" }
 twitch_data = { version = "0.2", git = "https://github.com/OMGeeky/twitch_data" }
 downloader_config = { version = "0.4", git = "https://github.com/OMGeeky/downloader_config" }
@@ -21,8 +21,8 @@ log-panics = { version = "2", features = ["with-backtrace"] }
 env_logger = "0.10.0"
 anyhow = "1.0.70"
 
-log = { version = "0.4" }
-tracing = { version = "0.1", optional = true }
+log = "0.4"
+tracing = "0.1"
 data-test = "0.1.1"
 
 [patch.crates-io]
@@ -30,13 +30,3 @@ data-test = "0.1.1"
 # this can be removed as soon as PR (#205)[https://github.com/dermesser/yup-oauth2/pull/205] is resolved and
 # the google-youtube3 crate uses the google-apis-common crate that implements this
 yup-oauth2 = { version = "8.1.1", git = "https://github.com/OMGeeky/yup-oauth2", branch = "8.1.1" }
-
-[features]
-default = []
-tracing = [
-    "dep:tracing",
-    "google_bigquery_v2/tracing",
-    "google_youtube/tracing",
-    "twitch_data/tracing",
-    "downloader_config/tracing",
-]

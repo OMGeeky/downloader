@@ -183,9 +183,9 @@ async fn get_not_downloaded_videos_from_db(
     let mut video_metadata_list = data::VideoMetadata::select()
         .with_client(client.clone())
         .add_where_eq(name_of!(backed_up in data::VideoMetadata), Some(&false))
-        .map_err(|e| anyhow!("could not add backed_up where: {}", e))?
+        .context("could not add backed_up where")?
         .add_where_eq::<String>(name_of!(error in data::VideoMetadata), None)
-        .map_err(|e| anyhow!("could not add error where: {}", e))?
+        .context("could not add error where")?
         .add_order_by(
             name_of!(video_id in data::VideoMetadata),
             OrderDirection::Ascending,
@@ -193,13 +193,10 @@ async fn get_not_downloaded_videos_from_db(
         //TODO: check if ordering by video_id is correct (should be oldest first)
         //TODO: sort this by streamer (join is needed)
         .set_limit(1000)
-        .build_query()
-        .map_err(|e| anyhow!("{}", e))?
+        .build_query()?
         .run()
-        .await
-        .map_err(|e| anyhow!("{}", e))?
-        .map_err_with_data("Error getting not downloaded videos from db")
-        .map_err(|e| anyhow!("{}", e))?;
+        .await?
+        .map_err_with_data("Error getting not downloaded videos from db")?;
     info!("getting not downloaded videos from db (videos)");
     let amount = video_metadata_list.len();
     info!("got about {} videos", amount);
