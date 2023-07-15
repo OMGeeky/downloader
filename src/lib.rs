@@ -256,23 +256,30 @@ async fn backup_not_downloaded_videos<'a>(
         }
         let mut video = video.unwrap();
 
-        trace!("Creating youtube client");
+        trace!("Getting youtube client");
         let youtube_client = youtube_clients.get(
             video
                 .streamer
                 .youtube_user
                 .as_ref()
-                .unwrap_or(&"NopixelVODs".to_string()),
+                .unwrap_or(&"unknown".to_string()),
         );
         if youtube_client.is_none() {
             warn!("could not find youtube client for video: {:?}", video);
+            let clients: Vec<String> = youtube_clients.keys().map(|k| k.clone()).collect();
+            let clients: String = clients.join(";");
+            warn!(
+                ?video,
+                warning = "could not find youtube client for video",
+                clients
+            );
             continue;
         }
         let youtube_client = youtube_client.expect("we just checked it");
         let result = backup_video(twitch_client, config, path, &mut video, &youtube_client).await;
         if let Err(e) = result {
             let error_message = format!("Error while backing up video: {}", e.to_string());
-            warn!("{}", error_message);
+            warn!(error_message, error=?e);
             video.metadata.error = Some(error_message);
             video.metadata.backed_up = Some(false);
             video.metadata.save().await.map_err(|e| anyhow!("{}", e))?;
