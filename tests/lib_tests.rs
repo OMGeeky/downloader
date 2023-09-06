@@ -1,6 +1,7 @@
+use std::env::temp_dir;
 use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Duration, NaiveDateTime, Utc};
 // use bigquery_googleapi::BigqueryClient;
 use downloader::prelude::*;
 use google_bigquery_v2::prelude::*;
@@ -255,4 +256,33 @@ fn prepare_existing_video_test_data(temp_subname: i32) -> (PathBuf, PathBuf) {
     std::fs::create_dir_all(video_path.parent().unwrap()).unwrap();
     std::fs::copy(video_source, &video_path).unwrap();
     (tmp_folder_path.to_path_buf(), video_path)
+}
+
+#[tokio::test]
+async fn download_video_with_multi_parts() {
+    init_console_logging(LevelFilter::Debug);
+    //sample video: https://www.twitch.tv/videos/1592654401
+    //total length 01:10:13 (HH:MM:SS)
+    let x = twitch_data::get_client()
+        .await
+        .expect("could not get client");
+    let path = temp_dir();
+    info!("downloading test video to folder: {}", path.display());
+    let video_path = x
+        .download_video("1592654401", "160p30", &path)
+        .await
+        .expect("could not download video");
+    info!("downloaded video: {:?}", video_path);
+    info!("splitting test video");
+    let paths = downloader::split_video_into_parts(
+        video_path,
+        Duration::minutes(20),
+        Duration::minutes(35),
+    )
+    .await
+    .expect("could not split video");
+
+    info!("checking results");
+    assert_eq!(paths.len(), 3);
+    info!(?paths);
 }

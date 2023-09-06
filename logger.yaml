@@ -11,7 +11,7 @@ appenders:
 
   trace_file:
     kind: rolling_file
-    path: "/var/tmp/twba/logs/downloader.trace.log"
+    path: "/downloader/logs/downloader.trace.log"
     filters:
       - kind: threshold
         level: trace
@@ -24,12 +24,12 @@ appenders:
         limit: 1 gb
       roller:
         kind: fixed_window
-        pattern: "/var/tmp/twba/logs/archive/downloader.trace.{}.log"
+        pattern: "/downloader/logs/archive/downloader.trace.{}.log"
         count: 5
 
   info_file:
     kind: rolling_file
-    path: "/var/tmp/twba/logs/downloader.info.log"
+    path: "/downloader/logs/downloader.info.log"
     filters:
       - kind: threshold
         level: info
@@ -42,12 +42,12 @@ appenders:
         limit: 100mb
       roller:
         kind: fixed_window
-        pattern: "/var/tmp/twba/logs/archive/downloader.info.{}.log"
+        pattern: "/downloader/logs/archive/downloader.info.{}.log"
         count: 5
 
   debug_file:
     kind: rolling_file
-    path: "/var/tmp/twba/logs/downloader.debug.log"
+    path: "/downloader/logs/downloader.debug.log"
     filters:
       - kind: threshold
         level: debug
@@ -60,7 +60,7 @@ appenders:
         limit: 1gb
       roller:
         kind: fixed_window
-        pattern: "/var/tmp/twba/logs/archive/downloader.debug.{}.log"
+        pattern: "/downloader/logs/archive/downloader.debug.{}.log"
         count: 5
 
 root:

@@ -148,7 +148,7 @@ async fn get_youtube_clients(
     let mut result = HashMap::new();
     let config = load_config();
     let streamers = get_watched_streamers(db_client).await?;
-
+    info!("Getting youtube clients for {:?}", streamers);
     for streamer in streamers {
         trace!("Creating youtube client");
 
@@ -169,8 +169,10 @@ async fn get_youtube_clients(
         )
         .await
         .map_err(|e| anyhow!("error creating the youtube client: {}", e))?;
+        info!("Got client for user: {}", user);
         result.insert(user, youtube_client);
     }
+    info!("Got youtube clients");
     Ok(result)
 }
 
@@ -438,7 +440,7 @@ pub async fn split_video_into_parts(
     let filepath = path.canonicalize()?;
     let parent_dir = path.parent().unwrap().canonicalize();
     if parent_dir.is_err() {
-        warn!("Could not canonicalize parent dir");
+        warn!("Could not canonicalize parent dir: {:?}", path);
     }
     let parent_dir = parent_dir.expect("Could not canonicalize parent dir");
 
@@ -533,9 +535,10 @@ pub async fn split_video_into_parts(
                     .expect("to_str on path did not work!");
                 let last_path = clean(&last_path);
                 let last_path = last_path.to_str().expect("to_str on path did not work!");
+                //create a file to tell ffmpeg what files to join/concat
                 tokio::fs::write(
                     join_txt_path.clone(),
-                    format!("file '{}'\nfile '{}'", last_path, second_last_path_str,),
+                    format!("file '{}'\nfile '{}'", second_last_path_str, last_path),
                 )
                 .await?;
 
@@ -885,16 +888,16 @@ mod tests {
 
         let (total_time, parts) = extract_track_info_from_playlist(sample_playlist_content)
             .expect("failed to extract track info from playlist");
-        assert_eq!(total_time, 18002.0 as f64);
+        assert_eq!(total_time, 18002.0f64);
         assert_eq!(parts.len(), 2);
 
         assert_eq!(
             parts[0],
-            ("1740252892.mp4_000.mp4".to_string(), 18001.720898 as f64)
+            ("1740252892.mp4_000.mp4".to_string(), 18001.720898f64)
         );
         assert_eq!(
             parts[1],
-            ("1740252892.mp4_001.mp4".to_string(), 14633.040755 as f64)
+            ("1740252892.mp4_001.mp4".to_string(), 14633.040755f64)
         );
     }
     #[tokio::test]
@@ -920,8 +923,8 @@ mod tests {
         );
         assert_eq!(parts[0], Path::join(parent_dir, "1740252892.mp4_000.mp4"));
         assert_eq!(parts[1], Path::join(parent_dir, "1740252892.mp4_001.mp4"));
-        assert_eq!(second_last_time, 18001.720898 as f64);
-        assert_eq!(last_time, 14633.040755 as f64);
+        assert_eq!(second_last_time, 18001.720898f64);
+        assert_eq!(last_time, 14633.040755f64);
     }
 }
 

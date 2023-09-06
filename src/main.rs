@@ -5,10 +5,10 @@ use std::fmt::Debug;
 use std::path::Path;
 
 use anyhow::{anyhow, Result};
+use downloader::prelude::*;
 use google_bigquery_v2::prelude::*;
 use google_youtube::scopes;
 use google_youtube::YoutubeClient;
-use downloader::prelude::*;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::rolling_file::policy::compound::roll;
 use log4rs::append::rolling_file::policy::compound::roll::fixed_window::FixedWindowRoller;
@@ -18,8 +18,11 @@ use log4rs::append::rolling_file::{RollingFileAppender, RollingFileAppenderBuild
 use log4rs::config::{Appender, Root};
 use log4rs::encode::pattern::PatternEncoder;
 use nameof::name_of;
-use simplelog::*;
 use tokio::fs::File;
+use tracing_appender::non_blocking::WorkerGuard;
+use tracing_appender::rolling;
+use tracing_appender::rolling::Rotation;
+use tracing_subscriber::prelude::*;
 use twitch_data::{
     convert_twitch_video_to_twitch_data_video, get_client, TwitchClient, Video, VideoQuality,
 };
@@ -37,11 +40,45 @@ const DATASET_ID: &str = "backup_data";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    initialize_logger2().await;
+    // initialize_logger2().await;
+    let _guards = initialize_logger3().await;
     info!("Hello, world!");
     start_backup().await?;
     // sample().await?;
     Ok(())
+}
+async fn initialize_logger3() -> Result<(WorkerGuard, WorkerGuard, WorkerGuard), Box<dyn Error>> {
+    let (info_daily, guard_info_daily) =
+        tracing_appender::non_blocking(rolling::daily("/downloader/logs", "info.log"));
+    let (debug_daily, guard_debug_daily) =
+        tracing_appender::non_blocking(rolling::daily("/downloader/logs", "debug.log"));
+    let (trace_daily, guard_trace_daily) =
+        tracing_appender::non_blocking(rolling::daily("/downloader/logs", "trace.log"));
+
+    let info_layer = tracing_subscriber::fmt::layer()
+        .with_writer(info_daily)
+        .with_filter(tracing_subscriber::filter::LevelFilter::INFO);
+
+    let debug_layer = tracing_subscriber::fmt::layer()
+        .with_writer(debug_daily)
+        .with_filter(tracing_subscriber::filter::LevelFilter::DEBUG);
+
+    let trace_layer = tracing_subscriber::fmt::layer()
+        .with_writer(trace_daily)
+        .with_filter(tracing_subscriber::filter::LevelFilter::TRACE);
+
+    let stdout_layer =
+        tracing_subscriber::fmt::layer().with_filter(tracing_subscriber::filter::LevelFilter::INFO);
+
+    let subscriber = tracing_subscriber::registry()
+        .with(info_layer)
+        .with(debug_layer)
+        .with(trace_layer)
+        .with(stdout_layer);
+
+    tracing::subscriber::set_global_default(subscriber).expect("Failed to set global subscriber");
+    print_log_start_msg();
+    Ok((guard_info_daily, guard_debug_daily, guard_trace_daily))
 }
 
 async fn initialize_logger2() -> Result<(), Box<dyn Error>> {
@@ -84,14 +121,19 @@ async fn initialize_logger2() -> Result<(), Box<dyn Error>> {
     );
     log4rs::init_file(path, Default::default())
         .expect("Failed to initialize the logger from the file");
+
+    info!("==================================================================================");
+
+    Ok(())
+}
+
+fn print_log_start_msg() {
     info!("==================================================================================");
     info!(
         "Start of new log on {}",
         chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
     );
     info!("==================================================================================");
-
-    Ok(())
 }
 
 fn gb_to_bytes(gb: f32) -> u64 {
@@ -103,25 +145,25 @@ async fn initialize_logger() -> Result<(), Box<dyn Error>> {
     tokio::fs::create_dir_all(log_folder).await?;
     let timestamp = chrono::Utc::now().format("%Y-%m-%d_%H-%M-%S").to_string();
 
-    CombinedLogger::init(vec![
+    simplelog::CombinedLogger::init(vec![
         // SimpleLogger::new(LevelFilter::Info, Config::default()),
-        TermLogger::new(
+        simplelog::TermLogger::new(
             LevelFilter::Info,
-            Config::default(),
-            TerminalMode::Mixed,
-            ColorChoice::Auto,
+            simplelog::Config::default(),
+            simplelog::TerminalMode::Mixed,
+            simplelog::ColorChoice::Auto,
         ),
-        WriteLogger::new(
+        simplelog::WriteLogger::new(
             LevelFilter::Info,
-            Config::default(),
+            simplelog::Config::default(),
             File::create(format!("{}downloader_{}.log", log_folder, timestamp))
                 .await?
                 .into_std()
                 .await,
         ),
-        WriteLogger::new(
+        simplelog::WriteLogger::new(
             LevelFilter::Trace,
-            Config::default(),
+            simplelog::Config::default(),
             File::create(format!("{}trace_{}.log", log_folder, timestamp))
                 .await?
                 .into_std()
@@ -194,7 +236,8 @@ async fn sample_bigquery<'a>(client: &'a BigqueryClient) -> Result<(), Box<dyn E
 
     let video_metadata = VideoMetadata::select()
         .with_client(client.clone())
-        .add_where_eq(name_of!(backed_up in VideoMetadata), Some(&true)).map_err(|e|anyhow!("{}",e))?
+        .add_where_eq(name_of!(backed_up in VideoMetadata), Some(&true))
+        .map_err(|e| anyhow!("{}", e))?
         .set_limit(10)
         .build_query()
         .map_err(|e| anyhow!("{}", e))?
@@ -207,7 +250,8 @@ async fn sample_bigquery<'a>(client: &'a BigqueryClient) -> Result<(), Box<dyn E
 
     let watched_streamers = Streamers::select()
         .with_client(client.clone())
-        .add_where_eq(name_of!(watched in Streamers), Some(&true)).map_err(|e|anyhow!("{}",e))?
+        .add_where_eq(name_of!(watched in Streamers), Some(&true))
+        .map_err(|e| anyhow!("{}", e))?
         .set_limit(100)
         .build_query()
         .map_err(|e| anyhow!("{}", e))?
